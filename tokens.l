@@ -3,8 +3,11 @@
 	#include "node.hpp"
 	#include "parser.hpp"
 
+	#ifdef DEBUG
 	#define WITH_LOG(t) (printf("token '%s', value '%s'\n", #t, yytext), t)
-	// #define WITH_LOG(t) (t)
+	#else
+	#define WITH_LOG(t) (t)
+	#endif
 	#define SAVE_TOKEN (yylval.string = new std::string(yytext, yyleng))
 	#define TOKEN(t) (yylval.token = t)
 	extern "C" int yywrap() { return 1; }

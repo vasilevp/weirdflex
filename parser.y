@@ -4,8 +4,7 @@
 	Block *programBlock;
 
 	extern int yylex();
-	void yyerror(const char *msg) { printf("ERROR: %s\n", msg); }
-	#define YYDEBUG 1
+	void yyerror(const char *msg) { printf("Parse error: %s\n", msg); }
 %}
 
 %union {
@@ -35,11 +34,10 @@
 %type <exprlist> call_args
 %type <block> program stmts block
 %type <stmt> stmt var_decl func_decl_arg func_decl
-// %type <token> binaryop
 
 /* precedence */
 
-%nonassoc REDUCE
+%nonassoc REDUCE		// LOWEST: special case for naughty rules
 %left COMMA				// 18: ,
 %nonassoc DECLAS		// 17: :=
 %right ASSIGN			// 16 R: = += -= *= /= %= <<= >>= &= ^= |= throw a?b:c
@@ -81,7 +79,7 @@ block			: LBRACE stmts RBRACE									{ $$ = $2; }
 				| stmt													{ $$ = new Block(); $$->stmts.push_back($1); }
 				;
 
-var_decl		: LET ident ASSIGN expr									{ $$ = new VariableDeclaration(nullptr, $2, $4); }
+var_decl		: LET ident ident ASSIGN expr							{ $$ = new VariableDeclaration($3, $2, $5); }
 				| ident DECLAS expr										{ $$ = new VariableDeclaration(nullptr, $1, $3); }
 				;
 

@@ -5,9 +5,6 @@
 #include <llvm/IR/Constants.h>
 #include <llvm/IR/Module.h>
 
-using namespace std;
-using namespace llvm;
-
 namespace Node
 {
 struct Block;
@@ -15,29 +12,29 @@ struct Block;
 
 struct CodeGenBlock
 {
-    BasicBlock *block;
-    map<string, Value *> locals;
+    llvm::BasicBlock *block;
+    std::map<std::string, llvm::Value *> locals;
 };
 
 struct CodeGenContext
 {
-    stack<CodeGenBlock> blocks;
-    Function *mainFunction;
-    unique_ptr<Module> module;
+    std::stack<CodeGenBlock> blocks;
+    llvm::Function *mainFunction;
+    std::unique_ptr<llvm::Module> module;
 
     CodeGenContext();
 
-    std::map<std::string, Value *> &locals()
+    std::map<std::string, llvm::Value *> &locals()
     {
         return blocks.top().locals;
     }
 
-    BasicBlock *currentBlock()
+    llvm::BasicBlock *currentBlock()
     {
         return blocks.top().block;
     }
 
-    void pushBlock(BasicBlock *block)
+    void pushBlock(llvm::BasicBlock *block)
     {
         blocks.push(CodeGenBlock{block : block, locals : {}});
     }
@@ -48,5 +45,5 @@ struct CodeGenContext
     }
 
     void generateCode(Node::Block &root);
-    void runCode();
+    void buildObject();
 };

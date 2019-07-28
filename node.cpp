@@ -25,26 +25,6 @@ IRBuilder<> Builder(GlobalContext);
 
 const Identifier Node::TypeAgnostic = Identifier("_untyped");
 
-struct guard
-{
-    std::string name;
-    guard(const std::string &name) : name(name)
-    {
-        cout << "Entering '" << name << "'\n";
-    }
-
-    ~guard()
-    {
-        cout << "Exiting '" << name << "'\n";
-    }
-};
-
-#ifdef DEBUG
-#define GUARD() auto _ = guard(__PRETTY_FUNCTION__);
-#else
-#define GUARD()
-#endif
-
 static Type *typeOf(const Identifier &type)
 {
     if (type.name == "int")
@@ -57,7 +37,7 @@ static Type *typeOf(const Identifier &type)
     }
     else if (type.name == "_untyped")
     {
-        return Type::getDoubleTy(GlobalContext);
+        return Type::getInt64PtrTy(GlobalContext);
     }
     else if (type.name == "string")
     {
@@ -68,21 +48,16 @@ static Type *typeOf(const Identifier &type)
 
 Value *Integer::codeGen(CodeGenContext &context) const
 {
-    GUARD();
     return ConstantInt::get(GlobalContext, APInt(64, value, false));
 }
 
 Value *Double::codeGen(CodeGenContext &context) const
 {
-    GUARD();
     return ConstantFP::get(GlobalContext, APFloat(value));
 }
 
 Value *String::codeGen(CodeGenContext &context) const
 {
-    GUARD();
-    // return IRBuilder<>(GlobalContext).CreateGlobalStringPtr(value, "");
-
     Constant *StrConstant = ConstantDataArray::getString(GlobalContext, value);
     Module &M = *context.currentBlock()->getParent()->getParent();
     auto *GV = new GlobalVariable(M, StrConstant->getType(), true, GlobalValue::PrivateLinkage, StrConstant);
@@ -96,7 +71,6 @@ Value *String::codeGen(CodeGenContext &context) const
 
 Value *Identifier::codeGen(CodeGenContext &context) const
 {
-    GUARD();
     if (context.locals().find(name) == context.locals().end())
     {
         cerr << "undeclared variable " << name << '\n';
@@ -107,7 +81,6 @@ Value *Identifier::codeGen(CodeGenContext &context) const
 
 Value *Block::codeGen(CodeGenContext &context) const
 {
-    GUARD();
     int r = rand();
     Value *last = nullptr;
     for (auto s : stmts)
@@ -120,18 +93,16 @@ Value *Block::codeGen(CodeGenContext &context) const
 
 Value *Assignment::codeGen(CodeGenContext &context) const
 {
-    GUARD();
-    if (context.locals().find(lhs.name) == context.locals().end())
+    auto it = context.locals().find(lhs.name);
+    if (it == context.locals().end())
     {
-        cerr << "undeclared variable " << lhs.name << '\n';
-        return nullptr;
+        throw runtime_error("undeclared variable: " + lhs.name);
     }
-    return new StoreInst(rhs.codeGen(context), context.locals()[lhs.name], false, context.currentBlock());
+    return new StoreInst(rhs.codeGen(context), it->second, false, context.currentBlock());
 }
 
 Value *Node::BinaryOperator::codeGen(CodeGenContext &context) const
 {
-    GUARD();
     Instruction::BinaryOps instr;
 
     switch (op)
@@ -158,14 +129,13 @@ Value *Node::BinaryOperator::codeGen(CodeGenContext &context) const
 
 Value *FunctionDeclaration::codeGen(CodeGenContext &context) const
 {
-    GUARD();
     vector<Type *> argTypes;
     for (auto arg : args)
     {
         argTypes.push_back(typeOf(*arg->type));
     }
 
-    FunctionType *ftype = FunctionType::get(Type::getInt32Ty(GlobalContext), argTypes, false);
+    FunctionType *ftype = FunctionType::get(Type::getInt32Ty(GlobalContext), argTypes, args.variadic);
     Function *function = Function::Create(ftype, GlobalValue::ExternalLinkage, id.name, context.module.get());
 
     if (!block)
@@ -190,7 +160,6 @@ Value *FunctionDeclaration::codeGen(CodeGenContext &context) const
 
 Value *MethodCall::codeGen(CodeGenContext &context) const
 {
-    GUARD();
     Function *function = context.module->getFunction(id.name);
     if (function == nullptr)
     {
@@ -209,13 +178,12 @@ Value *MethodCall::codeGen(CodeGenContext &context) const
 
 Value *VariableDeclaration::codeGen(CodeGenContext &context) const
 {
-    GUARD();
-    if (!id) // function decl
+    if (!id) // extern function decl, no code generation needed
     {
         return nullptr;
     }
 
-    AllocaInst *alloc = new AllocaInst(typeOf(*type), static_cast<unsigned int>(-1), id->name, context.currentBlock());
+    AllocaInst *alloc = new AllocaInst(typeOf(*type), 0, id->name, context.currentBlock());
     context.locals()[id->name] = alloc;
     if (rhs != nullptr)
     {
@@ -227,18 +195,16 @@ Value *VariableDeclaration::codeGen(CodeGenContext &context) const
 
 Value *ExpressionStatement::codeGen(CodeGenContext &context) const
 {
-    GUARD();
     return expr.codeGen(context);
 }
 
 Value *ArgumentList::codeGen(CodeGenContext &context) const
 {
-    GUARD();
     Value *result = nullptr;
     for (auto arg : args)
     {
         result = arg->codeGen(context);
     }
 
-    return nullptr;
+    return result;
 }

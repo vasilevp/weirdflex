@@ -20,11 +20,9 @@ int main(int argc, char **argv)
         return 1;
     }
 
-    std::cout << programBlock << std::endl;
-
     CodeGenContext context;
     context.generateCode(*programBlock);
-    context.runCode();
+    context.buildObject();
 
     return 0;
 }

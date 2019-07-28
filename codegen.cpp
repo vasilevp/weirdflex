@@ -22,9 +22,15 @@ using namespace std::literals;
 CodeGenContext::CodeGenContext()
 {
     module = llvm::make_unique<Module>("main module", GlobalContext);
+
+    // Initialize the target registry etc.
+    InitializeAllTargetInfos();
+    InitializeAllTargets();
+    InitializeAllTargetMCs();
+    InitializeAllAsmParsers();
+    InitializeAllAsmPrinters();
 }
 
-/* Compile the AST into a module */
 void CodeGenContext::generateCode(Node::Block &root)
 {
     std::cout << "Generating code...\n";
@@ -41,25 +47,18 @@ void CodeGenContext::generateCode(Node::Block &root)
     pm.run(*module);
 }
 
-void CodeGenContext::runCode()
+void CodeGenContext::buildObject()
 {
-    // Initialize the target registry etc.
-    InitializeAllTargetInfos();
-    InitializeAllTargets();
-    InitializeAllTargetMCs();
-    InitializeAllAsmParsers();
-    InitializeAllAsmPrinters();
-
-    auto TargetTriple = sys::getDefaultTargetTriple();
-    module->setTargetTriple(TargetTriple);
+    auto targetTriple = sys::getDefaultTargetTriple();
+    module->setTargetTriple(targetTriple);
 
     std::string Error;
-    auto Target = TargetRegistry::lookupTarget(TargetTriple, Error);
+    auto target = TargetRegistry::lookupTarget(targetTriple, Error);
 
     // Print an error and exit if we couldn't find the requested target.
     // This generally occurs if we've forgotten to initialise the
     // TargetRegistry or we have a bogus target triple.
-    if (!Target)
+    if (!target)
     {
         errs() << Error;
         return;
@@ -70,14 +69,13 @@ void CodeGenContext::runCode()
 
     TargetOptions opt;
     auto RM = Optional<Reloc::Model>(Reloc::Model::PIC_);
-    auto TheTargetMachine =
-        Target->createTargetMachine(TargetTriple, CPU, Features, opt, RM);
+    auto targetMachine = target->createTargetMachine(targetTriple, CPU, Features, opt, RM);
 
-    module->setDataLayout(TheTargetMachine->createDataLayout());
+    module->setDataLayout(targetMachine->createDataLayout());
 
-    auto Filename = "output.o";
+    auto filename = "output.o";
     std::error_code EC;
-    raw_fd_ostream dest(Filename, EC, sys::fs::F_None);
+    raw_fd_ostream dest(filename, EC, sys::fs::F_None);
 
     if (EC)
     {
@@ -88,21 +86,17 @@ void CodeGenContext::runCode()
     legacy::PassManager pass;
 
 #ifdef __MINGW32__
-    if (TheTargetMachine->addPassesToEmitFile(pass, dest, nullptr, TargetMachine::CGFT_ObjectFile, false, nullptr))
-    {
-        errs() << "TheTargetMachine can't emit a file of this type";
-        return;
-    }
+    if (targetMachine->addPassesToEmitFile(pass, dest, nullptr, TargetMachine::CGFT_ObjectFile, false, nullptr))
 #else
-    if (TheTargetMachine->addPassesToEmitFile(pass, dest, /* nullptr, */ TargetMachine::CGFT_ObjectFile, false, nullptr))
+    if (targetMachine->addPassesToEmitFile(pass, dest, /* nullptr, */ TargetMachine::CGFT_ObjectFile, false, nullptr))
+#endif
     {
         errs() << "TheTargetMachine can't emit a file of this type";
         return;
     }
-#endif
 
     pass.run(*module);
     dest.flush();
 
-    outs() << TargetTriple << ": Wrote " << Filename << " (" << dest.tell() << " bytes)\n";
+    outs() << targetTriple << ": Wrote " << filename << " (" << dest.tell() << " bytes)\n";
 }
