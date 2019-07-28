@@ -59,22 +59,26 @@ static Type *typeOf(const Identifier &type)
     {
         return Type::getDoubleTy(GlobalContext);
     }
+    else if (type.name == "string")
+    {
+        return Type::getInt8PtrTy(GlobalContext);
+    }
     return Type::getVoidTy(GlobalContext);
 }
 
-Value *Integer::codeGen(CodeGenContext &context)
+Value *Integer::codeGen(CodeGenContext &context) const
 {
     GUARD();
     return ConstantInt::get(GlobalContext, APInt(64, value, false));
 }
 
-Value *Double::codeGen(CodeGenContext &context)
+Value *Double::codeGen(CodeGenContext &context) const
 {
     GUARD();
     return ConstantFP::get(GlobalContext, APFloat(value));
 }
 
-Value *String::codeGen(CodeGenContext &context)
+Value *String::codeGen(CodeGenContext &context) const
 {
     GUARD();
     // return IRBuilder<>(GlobalContext).CreateGlobalStringPtr(value, "");
@@ -90,7 +94,7 @@ Value *String::codeGen(CodeGenContext &context)
     return ConstantExpr::getInBoundsGetElementPtr(GV->getValueType(), GV, Indices);
 }
 
-Value *Identifier::codeGen(CodeGenContext &context)
+Value *Identifier::codeGen(CodeGenContext &context) const
 {
     GUARD();
     if (context.locals().find(name) == context.locals().end())
@@ -101,7 +105,7 @@ Value *Identifier::codeGen(CodeGenContext &context)
     return new LoadInst(context.locals()[name], "", false, context.currentBlock());
 }
 
-Value *Block::codeGen(CodeGenContext &context)
+Value *Block::codeGen(CodeGenContext &context) const
 {
     GUARD();
     int r = rand();
@@ -114,7 +118,7 @@ Value *Block::codeGen(CodeGenContext &context)
     return last;
 }
 
-Value *Assignment::codeGen(CodeGenContext &context)
+Value *Assignment::codeGen(CodeGenContext &context) const
 {
     GUARD();
     if (context.locals().find(lhs.name) == context.locals().end())
@@ -125,7 +129,7 @@ Value *Assignment::codeGen(CodeGenContext &context)
     return new StoreInst(rhs.codeGen(context), context.locals()[lhs.name], false, context.currentBlock());
 }
 
-Value *Node::BinaryOperator::codeGen(CodeGenContext &context)
+Value *Node::BinaryOperator::codeGen(CodeGenContext &context) const
 {
     GUARD();
     Instruction::BinaryOps instr;
@@ -152,7 +156,7 @@ Value *Node::BinaryOperator::codeGen(CodeGenContext &context)
     return llvm::BinaryOperator::Create(instr, lhs.codeGen(context), rhs.codeGen(context), "", context.currentBlock());
 }
 
-Value *FunctionDeclaration::codeGen(CodeGenContext &context)
+Value *FunctionDeclaration::codeGen(CodeGenContext &context) const
 {
     GUARD();
     vector<Type *> argTypes;
@@ -173,10 +177,7 @@ Value *FunctionDeclaration::codeGen(CodeGenContext &context)
 
     context.pushBlock(bblock);
 
-    for (auto arg : args)
-    {
-        arg->codeGen(context);
-    }
+    args.codeGen(context);
 
     block->codeGen(context);
 
@@ -187,14 +188,13 @@ Value *FunctionDeclaration::codeGen(CodeGenContext &context)
     return function;
 }
 
-Value *MethodCall::codeGen(CodeGenContext &context)
+Value *MethodCall::codeGen(CodeGenContext &context) const
 {
     GUARD();
     Function *function = context.module->getFunction(id.name);
     if (function == nullptr)
     {
-        std::cerr << "no such function " << id.name << std::endl;
-        return nullptr;
+        throw runtime_error("function '" + id.name + "' not found");
     }
 
     std::vector<Value *> argv;
@@ -207,21 +207,38 @@ Value *MethodCall::codeGen(CodeGenContext &context)
     return call;
 }
 
-Value *VariableDeclaration::codeGen(CodeGenContext &context)
+Value *VariableDeclaration::codeGen(CodeGenContext &context) const
 {
     GUARD();
-    AllocaInst *alloc = new AllocaInst(typeOf(*type), static_cast<unsigned int>(-1), id.name, context.currentBlock());
-    context.locals()[id.name] = alloc;
+    if (!id) // function decl
+    {
+        return nullptr;
+    }
+
+    AllocaInst *alloc = new AllocaInst(typeOf(*type), static_cast<unsigned int>(-1), id->name, context.currentBlock());
+    context.locals()[id->name] = alloc;
     if (rhs != nullptr)
     {
-        Assignment assn(id, *rhs);
+        Assignment assn(*id, *rhs);
         assn.codeGen(context);
     }
     return alloc;
 }
 
-Value *ExpressionStatement::codeGen(CodeGenContext &context)
+Value *ExpressionStatement::codeGen(CodeGenContext &context) const
 {
     GUARD();
     return expr.codeGen(context);
+}
+
+Value *ArgumentList::codeGen(CodeGenContext &context) const
+{
+    GUARD();
+    Value *result = nullptr;
+    for (auto arg : args)
+    {
+        result = arg->codeGen(context);
+    }
+
+    return nullptr;
 }

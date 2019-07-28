@@ -15,7 +15,7 @@
 	Node::Statement *stmt;
 	Node::Identifier *ident;
 	Node::VariableDeclaration *vardecl;
-	Node::VariableList *varlist;
+	Node::ArgumentList *arglist;
 	Node::ExpressionList *exprlist;
 	std::string *string;
 	int token;
@@ -24,14 +24,14 @@
 /* terminals */
 %token <string> IDENTIFIER INTEGER DOUBLE STRING
 %token <token> EQ NE LT GT LE GE ASSIGN LET FUNC EXTERN
-%token <token> LPAREN RPAREN LBRACE RBRACE COMMA DOT
+%token <token> LPAREN RPAREN LBRACE RBRACE COMMA DOT ELLIPSIS
 %token <token> PLUS MINUS MUL DIV
 
 /* nonterminals */
 
 %type <ident> ident
 %type <expr> numeric expr string
-%type <varlist> func_decl_args
+%type <arglist> func_decl_args
 %type <exprlist> call_args
 %type <block> program stmts block
 %type <stmt> stmt var_decl func_decl_arg func_decl
@@ -81,8 +81,8 @@ block			: LBRACE stmts RBRACE									{ $$ = $2; }
 				| stmt													{ $$ = new Block(); $$->stmts.push_back($1); }
 				;
 
-var_decl		: LET ident ASSIGN expr									{ $$ = new VariableDeclaration(nullptr, *$2, $4); }
-				| ident DECLAS expr										{ $$ = new VariableDeclaration(nullptr, *$1, $3); }
+var_decl		: LET ident ASSIGN expr									{ $$ = new VariableDeclaration(nullptr, $2, $4); }
+				| ident DECLAS expr										{ $$ = new VariableDeclaration(nullptr, $1, $3); }
 				;
 
 func_decl		: FUNC ident LPAREN func_decl_args RPAREN ident block	{ $$ = new FunctionDeclaration($6, *$2, *$4, $7); }
@@ -90,12 +90,14 @@ func_decl		: FUNC ident LPAREN func_decl_args RPAREN ident block	{ $$ = new Func
 				| EXTERN ident LPAREN func_decl_args RPAREN				{ $$ = new FunctionDeclaration(nullptr, *$2, *$4, nullptr); }
 				;
 
-func_decl_arg	: ident ident											{ $$ = new VariableDeclaration($2, *$1, nullptr); }
+func_decl_arg	: ident ident											{ $$ = new VariableDeclaration($2, $1, nullptr); }
+				| ident													{ $$ = new VariableDeclaration($1, nullptr, nullptr); }
 				;
 
-func_decl_args	: %empty												{ $$ = new VariableList(); }
-				| func_decl_arg											{ $$ = new VariableList(); $$->push_back($<vardecl>1); }
+func_decl_args	: %empty												{ $$ = new ArgumentList(); }
+				| func_decl_arg											{ $$ = new ArgumentList(); $$->push_back($<vardecl>1); }
 				| func_decl_args COMMA func_decl_arg					{ $1->push_back($<vardecl>3); }
+				| func_decl_args COMMA ELLIPSIS							{ $1->variadic = true; }
 				;
 
 ident			: IDENTIFIER											{ $$ = new Identifier(*$1); }

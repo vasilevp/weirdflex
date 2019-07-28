@@ -29,11 +29,6 @@ void CodeGenContext::generateCode(Node::Block &root)
 {
     std::cout << "Generating code...\n";
 
-    vector<Type *> argTypes;
-    argTypes.push_back(Type::getInt8PtrTy(GlobalContext));
-    llvm::FunctionType *fccType = llvm::FunctionType::get(llvm::Type::getVoidTy(GlobalContext), argTypes, true);
-    Function *fcc = (Function *)module->getOrInsertFunction("printf", fccType);
-
     root.codeGen(*this);
 
     std::cout << "Code is generated.\n";

@@ -31,8 +31,9 @@
 "/"						return TOKEN(WITH_LOG(DIV));
 "let"					return TOKEN(WITH_LOG(LET));
 "func"					return TOKEN(WITH_LOG(FUNC));
-"extern"					return TOKEN(WITH_LOG(EXTERN));
+"extern"				return TOKEN(WITH_LOG(EXTERN));
 ":="					return TOKEN(WITH_LOG(DECLAS));
+"..."					return TOKEN(WITH_LOG(ELLIPSIS));
 
 [ \t\n]					;
 [a-zA-Z_][a-zA-Z0-9_]*	SAVE_TOKEN; return WITH_LOG(IDENTIFIER);
