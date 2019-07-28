@@ -47,6 +47,10 @@ void CodeGenContext::generateCode(Node::Block &root)
        to see if our program compiled properly
      */
     std::cout << "Code is generated.\n";
+
+    legacy::PassManager pm;
+    pm.add(createPrintModulePass(outs()));
+    pm.run(*module);
 }
 
 /* Executes the AST by running the main function */

@@ -65,21 +65,18 @@ static Type *typeOf(const Identifier &type)
 Value *Integer::codeGen(CodeGenContext &context)
 {
     GUARD();
-    cout << "Creating integer: " << value << endl;
     return ConstantInt::get(GlobalContext, APInt(64, value, false));
 }
 
 Value *Double::codeGen(CodeGenContext &context)
 {
     GUARD();
-    cout << "Creating double: " << value << endl;
     return ConstantFP::get(GlobalContext, APFloat(value));
 }
 
 Value *Identifier::codeGen(CodeGenContext &context)
 {
     GUARD();
-    cout << "Creating identifier reference: " << name << '\n';
     if (context.locals().find(name) == context.locals().end())
     {
         cerr << "undeclared variable " << name << '\n';
@@ -92,22 +89,18 @@ Value *Block::codeGen(CodeGenContext &context)
 {
     GUARD();
     int r = rand();
-    std::cout << "Creating block " << r << endl;
     Value *last = nullptr;
     for (auto s : stmts)
     {
-        cout << "Generating code for " << typeid(*s).name() << '\n';
         last = s->codeGen(context);
     }
 
-    std::cout << "End of block " << r << endl;
     return last;
 }
 
 Value *Assignment::codeGen(CodeGenContext &context)
 {
     GUARD();
-    cout << "Creating assignment for " << lhs.name << '\n';
     if (context.locals().find(lhs.name) == context.locals().end())
     {
         cerr << "undeclared variable " << lhs.name << '\n';
@@ -124,19 +117,15 @@ Value *Node::BinaryOperator::codeGen(CodeGenContext &context)
     switch (op)
     {
     case PLUS:
-        std::cout << "Creating binary op: +" << std::endl;
         instr = Instruction::Add;
         break;
     case MINUS:
-        std::cout << "Creating binary op: -" << std::endl;
         instr = Instruction::Sub;
         break;
     case MUL:
-        std::cout << "Creating binary op: *" << std::endl;
         instr = Instruction::Mul;
         break;
     case DIV:
-        std::cout << "Creating binary op: /" << std::endl;
         instr = Instruction::SDiv;
         break;
 
@@ -173,7 +162,6 @@ Value *FunctionDeclaration::codeGen(CodeGenContext &context)
     ReturnInst::Create(GlobalContext, v, bblock);
 
     context.popBlock();
-    std::cout << "Creating function: " << id.name << std::endl;
     return function;
 }
 
@@ -194,14 +182,12 @@ Value *MethodCall::codeGen(CodeGenContext &context)
     }
 
     CallInst *call = CallInst::Create(function, argv, "", context.currentBlock());
-    std::cout << "Creating method call: " << id.name << std::endl;
     return call;
 }
 
 Value *VariableDeclaration::codeGen(CodeGenContext &context)
 {
     GUARD();
-    std::cout << "Creating variable declaration " << type->name << " " << id.name << std::endl;
     AllocaInst *alloc = new AllocaInst(typeOf(*type), static_cast<unsigned int>(-1), id.name, context.currentBlock());
     context.locals()[id.name] = alloc;
     if (rhs != nullptr)
@@ -215,6 +201,5 @@ Value *VariableDeclaration::codeGen(CodeGenContext &context)
 Value *ExpressionStatement::codeGen(CodeGenContext &context)
 {
     GUARD();
-    // std::cout << "Generating code for " << typeid(expr).name() << std::endl;
     return expr.codeGen(context);
 }

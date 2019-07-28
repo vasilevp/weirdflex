@@ -34,4 +34,5 @@ codegen.o: codegen.cpp
 	g++ ${GXX_OPTS} -c $^
 
 parser:		tokens.o parser.o main.o node.o codegen.o
+	@echo ":: linking parser"
 	g++ ${GXX_OPTS} -o $@ tokens.o parser.o main.o node.o codegen.o `llvm-config --libs --ldflags --system-libs`
