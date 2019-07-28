@@ -11,7 +11,7 @@ extern int yydebug;
 
 int main(int argc, char **argv)
 {
-#ifdef DEBUG
+#ifdef _DEBUG
     yydebug = 1;
 #endif
 

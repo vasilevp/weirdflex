@@ -55,9 +55,6 @@ void CodeGenContext::buildObject()
     std::string Error;
     auto target = TargetRegistry::lookupTarget(targetTriple, Error);
 
-    // Print an error and exit if we couldn't find the requested target.
-    // This generally occurs if we've forgotten to initialise the
-    // TargetRegistry or we have a bogus target triple.
     if (!target)
     {
         errs() << Error;

@@ -3,7 +3,7 @@
 	#include "node.hpp"
 	#include "parser.hpp"
 
-	#ifdef DEBUG
+	#ifdef _DEBUG
 	#define WITH_LOG(t) (printf("token '%s', value '%s'\n", #t, yytext), t)
 	#else
 	#define WITH_LOG(t) (t)
@@ -38,9 +38,9 @@
 ":="					return TOKEN(WITH_LOG(DECLAS));
 "..."					return TOKEN(WITH_LOG(ELLIPSIS));
 
-[ \t\n]					;
+[ \t\r\n]				;
 [a-zA-Z_][a-zA-Z0-9_]*	SAVE_TOKEN; return WITH_LOG(IDENTIFIER);
-[0-9]+\.[0-9]*			SAVE_TOKEN; return WITH_LOG(DOUBLE);
+[0-9]+\.[0-9]+			SAVE_TOKEN; return WITH_LOG(DOUBLE);
 [0-9]+					SAVE_TOKEN; return WITH_LOG(INTEGER);
 
 \".*\"					yylval.string = new std::string(yytext + 1, yyleng - 2); return WITH_LOG(STRING);
