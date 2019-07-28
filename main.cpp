@@ -1,12 +1,28 @@
 #include <iostream>
+#include "codegen.hpp"
 #include "node.hpp"
 
-extern Node::Block *programBlock;
+using namespace std;
+
 extern int yyparse();
+extern Node::Block *programBlock;
+
+extern int yydebug;
 
 int main(int argc, char **argv)
 {
-    yyparse();
-    printf("Parsed %d statements\n", programBlock->stmts.size());
+    yydebug = 1;
+
+    if (yyparse())
+    {
+        return 1;
+    }
+
+    std::cout << programBlock << std::endl;
+
+    CodeGenContext context;
+    context.generateCode(*programBlock);
+    context.runCode();
+
     return 0;
 }

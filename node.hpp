@@ -19,7 +19,7 @@ using VariableList = std::vector<VariableDeclaration *>;
 
 extern const Identifier TypeAgnostic;
 
-extern llvm::LLVMContext Context;
+extern llvm::LLVMContext GlobalContext;
 
 struct NodeBase
 {
@@ -88,9 +88,9 @@ struct BinaryOperator : Expression
 
 struct Assignment : Expression
 {
-	Identifier &lhs;
+	const Identifier &lhs;
 	Expression &rhs;
-	Assignment(Identifier &lhs, Expression &rhs) : lhs(lhs), rhs(rhs) {}
+	Assignment(const Identifier &lhs, Expression &rhs) : lhs(lhs), rhs(rhs) {}
 	virtual llvm::Value *codeGen(CodeGenContext &context) override;
 };
 
@@ -112,8 +112,8 @@ struct VariableDeclaration : Statement
 {
 	const Identifier *type;
 	const Identifier &id;
-	Expression &rhs;
-	VariableDeclaration(Identifier *type, Identifier &id, Expression &rhs) : type(type ? type : &TypeAgnostic), id(id), rhs(rhs) {}
+	Expression *rhs;
+	VariableDeclaration(Identifier *type, Identifier &id, Expression *rhs) : type(type ? type : &TypeAgnostic), id(id), rhs(rhs) {}
 	virtual llvm::Value *codeGen(CodeGenContext &context) override;
 };
 

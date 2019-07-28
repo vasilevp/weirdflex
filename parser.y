@@ -5,6 +5,7 @@
 
 	extern int yylex();
 	void yyerror(const char *msg) { printf("ERROR: %s\n", msg); }
+	#define YYDEBUG 1
 %}
 
 %union {
@@ -33,7 +34,7 @@
 %type <varlist> func_decl_args
 %type <exprlist> call_args
 %type <block> program stmts block
-%type <stmt> stmt var_decl
+%type <stmt> stmt var_decl func_decl_arg
 // %type <token> binaryop
 
 /* precedence */
@@ -79,30 +80,33 @@ block			: LBRACE stmts RBRACE								{ $$ = $2; }
 				| stmt												{ $$ = new Block(); $$->stmts.push_back($1); }
 				;
 
-var_decl		: LET ident ident ASSIGN expr						{ $$ = new VariableDeclaration($3, *$2, *$5); }
-				| ident DECLAS expr									{ $$ = new VariableDeclaration(nullptr, *$1, *$3); }
+var_decl		: LET ident ASSIGN expr								{ $$ = new VariableDeclaration(nullptr, *$2, $4); }
+				| ident DECLAS expr									{ $$ = new VariableDeclaration(nullptr, *$1, $3); }
 				;
 
-func_decl		: FUNC ident LPAREN func_decl_args RPAREN block		{ $$ = new FunctionDeclaration(nullptr, *$2, *$4, *$6); delete $4; }
+func_decl		: FUNC ident LPAREN func_decl_args RPAREN block		{ $$ = new FunctionDeclaration(nullptr, *$2, *$4, *$6); }
+				;
+
+func_decl_arg	: ident												{ $$ = new VariableDeclaration(nullptr, *$1, nullptr); }
 				;
 
 func_decl_args	: %empty											{ $$ = new VariableList(); }
-				| var_decl											{ $$ = new VariableList(); $$->push_back($<vardecl>1); }
-				| func_decl_args COMMA var_decl						{ $1->push_back($<vardecl>3); }
+				| func_decl_arg										{ $$ = new VariableList(); $$->push_back($<vardecl>1); }
+				| func_decl_args COMMA func_decl_arg				{ $1->push_back($<vardecl>3); }
 				;
 
-ident			: IDENTIFIER										{ $$ = new Identifier(*$1); delete $1; }
+ident			: IDENTIFIER										{ $$ = new Identifier(*$1); }
 				;
 
-numeric			: INTEGER											{ $$ = new Integer(atol($1->c_str())); delete $1; }
-				| DOUBLE											{ $$ = new Double(atof($1->c_str())); delete $1; }
-				| MINUS INTEGER										{ $$ = new Integer(-atol($2->c_str())); delete $2; }
-				| MINUS DOUBLE										{ $$ = new Double(-atof($2->c_str())); delete $2; }
+numeric			: INTEGER											{ $$ = new Integer(atol($1->c_str())); }
+				| DOUBLE											{ $$ = new Double(atof($1->c_str())); }
+				| MINUS INTEGER										{ $$ = new Integer(-atol($2->c_str())); }
+				| MINUS DOUBLE										{ $$ = new Double(-atof($2->c_str())); }
 				;
 
 expr			: ident ASSIGN expr									{ $$ = new Assignment(*$1, *$3); }
-				| ident LPAREN call_args RPAREN						{ $$ = new MethodCall(*$1, *$3); delete $3; }
-				// | ident												{ $$ = $1; }
+				| ident LPAREN call_args RPAREN						{ $$ = new MethodCall(*$1, *$3); }
+				| ident	%prec REDUCE											{ $$ = $1; }
 				| numeric
 				| expr PLUS expr									{ $$ = new BinaryOperator(*$1, $2, *$3); }
 				| expr MINUS expr									{ $$ = new BinaryOperator(*$1, $2, *$3); }

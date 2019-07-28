@@ -3,12 +3,16 @@
 #include <map>
 #include <stack>
 #include <llvm/IR/Constants.h>
+#include <llvm/IR/Module.h>
 #include <llvm/ExecutionEngine/GenericValue.h>
 
 using namespace std;
 using namespace llvm;
 
-struct NBlock;
+namespace Node
+{
+struct Block;
+}
 
 struct CodeGenBlock
 {
@@ -20,7 +24,7 @@ struct CodeGenContext
 {
     stack<CodeGenBlock> blocks;
     Function *mainFunction;
-    Module *module;
+    unique_ptr<Module> module;
 
     CodeGenContext();
 
@@ -44,6 +48,6 @@ struct CodeGenContext
         blocks.pop();
     }
 
-    void generateCode(NBlock &root);
+    void generateCode(Node::Block &root);
     GenericValue runCode();
 };

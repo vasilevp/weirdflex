@@ -5,3 +5,4 @@ parser
 parser.exe
 parser.hpp
 .vscode/
+*.o
