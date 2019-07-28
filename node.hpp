@@ -117,7 +117,7 @@ struct VariableDeclaration : Statement
 	virtual llvm::Value *codeGen(CodeGenContext &context) override;
 };
 
-struct FunctionDeclaration : Expression
+struct FunctionDeclaration : Statement
 {
 	const Identifier *type;
 	const Identifier &id;

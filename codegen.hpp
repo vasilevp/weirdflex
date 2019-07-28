@@ -4,7 +4,6 @@
 #include <stack>
 #include <llvm/IR/Constants.h>
 #include <llvm/IR/Module.h>
-#include <llvm/ExecutionEngine/GenericValue.h>
 
 using namespace std;
 using namespace llvm;
@@ -49,5 +48,5 @@ struct CodeGenContext
     }
 
     void generateCode(Node::Block &root);
-    GenericValue runCode();
+    void runCode();
 };

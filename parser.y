@@ -30,11 +30,11 @@
 /* nonterminals */
 
 %type <ident> ident
-%type <expr> numeric expr func_decl
+%type <expr> numeric expr
 %type <varlist> func_decl_args
 %type <exprlist> call_args
 %type <block> program stmts block
-%type <stmt> stmt var_decl func_decl_arg
+%type <stmt> stmt var_decl func_decl_arg func_decl
 // %type <token> binaryop
 
 /* precedence */
@@ -72,6 +72,7 @@ stmts			: stmt												{ $$ = new Block(); $$->stmts.push_back($1); }
 				;
 
 stmt			: var_decl
+				| func_decl
 				| expr %prec REDUCE									{ $$ = new ExpressionStatement(*$1); }
 				;
 
@@ -118,7 +119,6 @@ expr			: ident ASSIGN expr									{ $$ = new Assignment(*$1, *$3); }
 				| expr GE expr										{ $$ = new BinaryOperator(*$1, $2, *$3); }
 				| expr EQ expr										{ $$ = new BinaryOperator(*$1, $2, *$3); }
 				| LPAREN expr RPAREN								{ $$ = $2; }
-				| func_decl
 				;
 
 call_args		: %empty											{ $$ = new ExpressionList(); }

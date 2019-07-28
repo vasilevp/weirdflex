@@ -25,6 +25,22 @@ IRBuilder<> Builder(GlobalContext);
 
 const Identifier Node::TypeAgnostic = Identifier("_untyped");
 
+struct guard
+{
+    std::string name;
+    guard(const std::string &name) : name(name)
+    {
+        cout << "Entering '" << name << "'\n";
+    }
+
+    ~guard()
+    {
+        cout << "Exiting '" << name << "'\n";
+    }
+};
+
+#define GUARD() auto _ = guard(__PRETTY_FUNCTION__);
+
 static Type *typeOf(const Identifier &type)
 {
     if (type.name == "int")
@@ -44,18 +60,21 @@ static Type *typeOf(const Identifier &type)
 
 Value *Integer::codeGen(CodeGenContext &context)
 {
+    GUARD();
     cout << "Creating integer: " << value << endl;
     return ConstantInt::get(GlobalContext, APInt(64, value, false));
 }
 
 Value *Double::codeGen(CodeGenContext &context)
 {
+    GUARD();
     cout << "Creating double: " << value << endl;
     return ConstantFP::get(GlobalContext, APFloat(value));
 }
 
 Value *Identifier::codeGen(CodeGenContext &context)
 {
+    GUARD();
     cout << "Creating identifier reference: " << name << '\n';
     if (context.locals().find(name) == context.locals().end())
     {
@@ -67,6 +86,7 @@ Value *Identifier::codeGen(CodeGenContext &context)
 
 Value *Block::codeGen(CodeGenContext &context)
 {
+    GUARD();
     int r = rand();
     std::cout << "Creating block " << r << endl;
     Value *last = nullptr;
@@ -82,6 +102,7 @@ Value *Block::codeGen(CodeGenContext &context)
 
 Value *Assignment::codeGen(CodeGenContext &context)
 {
+    GUARD();
     cout << "Creating assignment for " << lhs.name << '\n';
     if (context.locals().find(lhs.name) == context.locals().end())
     {
@@ -93,10 +114,8 @@ Value *Assignment::codeGen(CodeGenContext &context)
 
 Value *Node::BinaryOperator::codeGen(CodeGenContext &context)
 {
+    GUARD();
     Instruction::BinaryOps instr;
-
-    auto l = lhs.codeGen(context);
-    auto r = rhs.codeGen(context);
 
     switch (op)
     {
@@ -126,6 +145,7 @@ Value *Node::BinaryOperator::codeGen(CodeGenContext &context)
 
 Value *FunctionDeclaration::codeGen(CodeGenContext &context)
 {
+    GUARD();
     vector<Type *> argTypes;
     for (auto arg : args)
     {
@@ -144,7 +164,9 @@ Value *FunctionDeclaration::codeGen(CodeGenContext &context)
     }
 
     block.codeGen(context);
-    ReturnInst::Create(GlobalContext, bblock);
+
+    auto v = ConstantFP::get(GlobalContext, APFloat(0.0));
+    ReturnInst::Create(GlobalContext, v, bblock);
 
     context.popBlock();
     std::cout << "Creating function: " << id.name << std::endl;
@@ -153,6 +175,7 @@ Value *FunctionDeclaration::codeGen(CodeGenContext &context)
 
 Value *MethodCall::codeGen(CodeGenContext &context)
 {
+    GUARD();
     Function *function = context.module->getFunction(id.name);
     if (function == nullptr)
     {
@@ -172,6 +195,7 @@ Value *MethodCall::codeGen(CodeGenContext &context)
 
 Value *VariableDeclaration::codeGen(CodeGenContext &context)
 {
+    GUARD();
     std::cout << "Creating variable declaration " << type->name << " " << id.name << std::endl;
     AllocaInst *alloc = new AllocaInst(typeOf(*type), static_cast<unsigned int>(-1), id.name, context.currentBlock());
     context.locals()[id.name] = alloc;
@@ -185,6 +209,7 @@ Value *VariableDeclaration::codeGen(CodeGenContext &context)
 
 Value *ExpressionStatement::codeGen(CodeGenContext &context)
 {
+    GUARD();
     // std::cout << "Generating code for " << typeid(expr).name() << std::endl;
     return expr.codeGen(context);
 }

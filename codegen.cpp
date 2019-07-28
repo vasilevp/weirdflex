@@ -19,9 +19,11 @@ using namespace Node;
 using namespace llvm;
 using namespace std::literals;
 
+uint32_t default_addrspace = static_cast<uint32_t>(-1);
+
 CodeGenContext::CodeGenContext()
 {
-    module = llvm::make_unique<Module>("main", GlobalContext);
+    module = llvm::make_unique<Module>("main module", GlobalContext);
 }
 
 /* Compile the AST into a module */
@@ -30,16 +32,16 @@ void CodeGenContext::generateCode(Node::Block &root)
     std::cout << "Generating code...\n";
 
     /* Create the top level interpreter function to call as entry */
-    vector<Type *> argTypes;
-    FunctionType *ftype = FunctionType::get(Type::getVoidTy(GlobalContext), argTypes, false);
-    mainFunction = Function::Create(ftype, GlobalValue::InternalLinkage, "main", module.get());
-    BasicBlock *bblock = BasicBlock::Create(GlobalContext, "entry", mainFunction, 0);
+    // vector<Type *> argTypes;
+    // FunctionType *ftype = FunctionType::get(Type::getVoidTy(GlobalContext), argTypes, false);
+    // mainFunction = Function::Create(ftype, GlobalValue::InternalLinkage, default_addrspace, "main", module.get());
+    // BasicBlock *bblock = BasicBlock::Create(GlobalContext, "entry", mainFunction, 0);
 
     /* Push a new variable/block context */
-    pushBlock(bblock);
+    // pushBlock(bblock);
     root.codeGen(*this); /* emit bytecode for the toplevel block */
-    ReturnInst::Create(GlobalContext, bblock);
-    popBlock();
+    // ReturnInst::Create(GlobalContext, bblock);
+    // popBlock();
 
     /* Print the bytecode in a human-readable format 
        to see if our program compiled properly
@@ -58,7 +60,7 @@ void CodeGenContext::generateCode(Node::Block &root)
 //     std::cout << "Code was run.\n";
 //     return v;
 // }
-GenericValue CodeGenContext::runCode()
+void CodeGenContext::runCode()
 {
     // Initialize the target registry etc.
     InitializeAllTargetInfos();
@@ -68,6 +70,7 @@ GenericValue CodeGenContext::runCode()
     InitializeAllAsmPrinters();
 
     auto TargetTriple = sys::getDefaultTargetTriple();
+    cout << TargetTriple << "," << module.get() << endl;
     module->setTargetTriple(TargetTriple);
 
     std::string Error;
@@ -101,9 +104,8 @@ GenericValue CodeGenContext::runCode()
     }
 
     legacy::PassManager pass;
-    auto FileType = TargetMachine::CGFT_ObjectFile;
 
-    if (TheTargetMachine->addPassesToEmitFile(pass, dest, nullptr, FileType))
+    if (TheTargetMachine->addPassesToEmitFile(pass, dest, nullptr, TargetMachine::CGFT_ObjectFile, false))
     {
         errs() << "TheTargetMachine can't emit a file of this type";
     }
