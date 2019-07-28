@@ -105,10 +105,17 @@ void CodeGenContext::runCode()
 
     legacy::PassManager pass;
 
-    if (TheTargetMachine->addPassesToEmitFile(pass, dest, nullptr, TargetMachine::CGFT_ObjectFile, false))
+#ifdef __MINGW32__
+    if (TheTargetMachine->addPassesToEmitFile(pass, dest, nullptr, TargetMachine::CGFT_ObjectFile, false, nullptr))
     {
         errs() << "TheTargetMachine can't emit a file of this type";
     }
+#else
+    if (TheTargetMachine->addPassesToEmitFile(pass, dest, /* nullptr, */ TargetMachine::CGFT_ObjectFile, false, nullptr))
+    {
+        errs() << "TheTargetMachine can't emit a file of this type";
+    }
+#endif
 
     pass.run(*module);
     dest.flush();

@@ -39,7 +39,11 @@ struct guard
     }
 };
 
+#ifdef DEBUG
 #define GUARD() auto _ = guard(__PRETTY_FUNCTION__);
+#else
+#define GUARD()
+#endif
 
 static Type *typeOf(const Identifier &type)
 {
@@ -153,7 +157,7 @@ Value *FunctionDeclaration::codeGen(CodeGenContext &context)
     }
 
     FunctionType *ftype = FunctionType::get(typeOf(*type), argTypes, false);
-    Function *function = Function::Create(ftype, GlobalValue::InternalLinkage, id.name, context.module.get());
+    Function *function = Function::Create(ftype, GlobalValue::ExternalLinkage, id.name, context.module.get());
     BasicBlock *bblock = BasicBlock::Create(GlobalContext, "entry", function);
 
     context.pushBlock(bblock);
@@ -180,6 +184,7 @@ Value *MethodCall::codeGen(CodeGenContext &context)
     if (function == nullptr)
     {
         std::cerr << "no such function " << id.name << std::endl;
+        return nullptr;
     }
 
     std::vector<Value *> argv;
