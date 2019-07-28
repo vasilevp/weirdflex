@@ -22,15 +22,15 @@
 }
 
 /* terminals */
-%token <string> IDENTIFIER INTEGER DOUBLE
-%token <token> EQ NE LT GT LE GE ASSIGN LET FUNC
+%token <string> IDENTIFIER INTEGER DOUBLE STRING
+%token <token> EQ NE LT GT LE GE ASSIGN LET FUNC EXTERN
 %token <token> LPAREN RPAREN LBRACE RBRACE COMMA DOT
 %token <token> PLUS MINUS MUL DIV
 
 /* nonterminals */
 
 %type <ident> ident
-%type <expr> numeric expr
+%type <expr> numeric expr string
 %type <varlist> func_decl_args
 %type <exprlist> call_args
 %type <block> program stmts block
@@ -85,8 +85,9 @@ var_decl		: LET ident ASSIGN expr									{ $$ = new VariableDeclaration(nullptr
 				| ident DECLAS expr										{ $$ = new VariableDeclaration(nullptr, *$1, $3); }
 				;
 
-func_decl		: FUNC ident LPAREN func_decl_args RPAREN ident block	{ $$ = new FunctionDeclaration($6, *$2, *$4, *$7); }
-				| FUNC ident LPAREN func_decl_args RPAREN block			{ $$ = new FunctionDeclaration(nullptr, *$2, *$4, *$6); }
+func_decl		: FUNC ident LPAREN func_decl_args RPAREN ident block	{ $$ = new FunctionDeclaration($6, *$2, *$4, $7); }
+				| FUNC ident LPAREN func_decl_args RPAREN block			{ $$ = new FunctionDeclaration(nullptr, *$2, *$4, $6); }
+				| EXTERN ident LPAREN func_decl_args RPAREN				{ $$ = new FunctionDeclaration(nullptr, *$2, *$4, nullptr); }
 				;
 
 func_decl_arg	: ident ident											{ $$ = new VariableDeclaration($2, *$1, nullptr); }
@@ -106,10 +107,14 @@ numeric			: INTEGER												{ $$ = new Integer(atol($1->c_str())); }
 				| MINUS DOUBLE											{ $$ = new Double(-atof($2->c_str())); }
 				;
 
+string			: STRING												{ $$ = new String(*$1); }
+				;
+
 expr			: ident ASSIGN expr										{ $$ = new Assignment(*$1, *$3); }
 				| ident LPAREN call_args RPAREN							{ $$ = new MethodCall(*$1, *$3); }
 				| ident	%prec REDUCE									{ $$ = $1; }
 				| numeric
+				| string
 				| expr PLUS expr										{ $$ = new BinaryOperator(*$1, $2, *$3); }
 				| expr MINUS expr										{ $$ = new BinaryOperator(*$1, $2, *$3); }
 				| expr MUL expr											{ $$ = new BinaryOperator(*$1, $2, *$3); }

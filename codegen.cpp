@@ -19,8 +19,6 @@ using namespace Node;
 using namespace llvm;
 using namespace std::literals;
 
-uint32_t default_addrspace = static_cast<uint32_t>(-1);
-
 CodeGenContext::CodeGenContext()
 {
     module = llvm::make_unique<Module>("main module", GlobalContext);
@@ -31,39 +29,23 @@ void CodeGenContext::generateCode(Node::Block &root)
 {
     std::cout << "Generating code...\n";
 
-    /* Create the top level interpreter function to call as entry */
-    // vector<Type *> argTypes;
-    // FunctionType *ftype = FunctionType::get(Type::getVoidTy(GlobalContext), argTypes, false);
-    // mainFunction = Function::Create(ftype, GlobalValue::InternalLinkage, default_addrspace, "main", module.get());
-    // BasicBlock *bblock = BasicBlock::Create(GlobalContext, "entry", mainFunction, 0);
+    vector<Type *> argTypes;
+    argTypes.push_back(Type::getInt8PtrTy(GlobalContext));
+    llvm::FunctionType *fccType = llvm::FunctionType::get(llvm::Type::getVoidTy(GlobalContext), argTypes, true);
+    Function *fcc = (Function *)module->getOrInsertFunction("printf", fccType);
 
-    /* Push a new variable/block context */
-    // pushBlock(bblock);
-    root.codeGen(*this); /* emit bytecode for the toplevel block */
-    // ReturnInst::Create(GlobalContext, bblock);
-    // popBlock();
+    root.codeGen(*this);
+
+    std::cout << "Code is generated.\n";
 
     /* Print the bytecode in a human-readable format 
        to see if our program compiled properly
      */
-    std::cout << "Code is generated.\n";
-
     legacy::PassManager pm;
     pm.add(createPrintModulePass(outs()));
     pm.run(*module);
 }
 
-/* Executes the AST by running the main function */
-// GenericValue CodeGenContext::runCode()
-// {
-//     std::cout << "Running code...\n";
-
-//     ExecutionEngine *ee = EngineBuilder(unique_ptr<Module>(module)).create();
-//     vector<GenericValue> noargs;
-//     GenericValue v = ee->runFunction(mainFunction, noargs);
-//     std::cout << "Code was run.\n";
-//     return v;
-// }
 void CodeGenContext::runCode()
 {
     // Initialize the target registry etc.
@@ -74,7 +56,6 @@ void CodeGenContext::runCode()
     InitializeAllAsmPrinters();
 
     auto TargetTriple = sys::getDefaultTargetTriple();
-    cout << TargetTriple << "," << module.get() << endl;
     module->setTargetTriple(TargetTriple);
 
     std::string Error;
@@ -86,13 +67,14 @@ void CodeGenContext::runCode()
     if (!Target)
     {
         errs() << Error;
+        return;
     }
 
     auto CPU = "generic";
     auto Features = "";
 
     TargetOptions opt;
-    auto RM = Optional<Reloc::Model>();
+    auto RM = Optional<Reloc::Model>(Reloc::Model::PIC_);
     auto TheTargetMachine =
         Target->createTargetMachine(TargetTriple, CPU, Features, opt, RM);
 
@@ -105,6 +87,7 @@ void CodeGenContext::runCode()
     if (EC)
     {
         errs() << "Could not open file: " << EC.message();
+        return;
     }
 
     legacy::PassManager pass;
@@ -113,11 +96,13 @@ void CodeGenContext::runCode()
     if (TheTargetMachine->addPassesToEmitFile(pass, dest, nullptr, TargetMachine::CGFT_ObjectFile, false, nullptr))
     {
         errs() << "TheTargetMachine can't emit a file of this type";
+        return;
     }
 #else
     if (TheTargetMachine->addPassesToEmitFile(pass, dest, /* nullptr, */ TargetMachine::CGFT_ObjectFile, false, nullptr))
     {
         errs() << "TheTargetMachine can't emit a file of this type";
+        return;
     }
 #endif
 

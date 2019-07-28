@@ -74,6 +74,22 @@ Value *Double::codeGen(CodeGenContext &context)
     return ConstantFP::get(GlobalContext, APFloat(value));
 }
 
+Value *String::codeGen(CodeGenContext &context)
+{
+    GUARD();
+    // return IRBuilder<>(GlobalContext).CreateGlobalStringPtr(value, "");
+
+    Constant *StrConstant = ConstantDataArray::getString(GlobalContext, value);
+    Module &M = *context.currentBlock()->getParent()->getParent();
+    auto *GV = new GlobalVariable(M, StrConstant->getType(), true, GlobalValue::PrivateLinkage, StrConstant);
+    GV->setUnnamedAddr(GlobalValue::UnnamedAddr::Global);
+    GV->setAlignment(1);
+
+    Constant *Zero = ConstantInt::get(Type::getInt32Ty(GlobalContext), 0);
+    Constant *Indices[] = {Zero, Zero};
+    return ConstantExpr::getInBoundsGetElementPtr(GV->getValueType(), GV, Indices);
+}
+
 Value *Identifier::codeGen(CodeGenContext &context)
 {
     GUARD();
@@ -145,8 +161,14 @@ Value *FunctionDeclaration::codeGen(CodeGenContext &context)
         argTypes.push_back(typeOf(*arg->type));
     }
 
-    FunctionType *ftype = FunctionType::get(typeOf(*type), argTypes, false);
+    FunctionType *ftype = FunctionType::get(Type::getInt32Ty(GlobalContext), argTypes, false);
     Function *function = Function::Create(ftype, GlobalValue::ExternalLinkage, id.name, context.module.get());
+
+    if (!block)
+    {
+        return function;
+    }
+
     BasicBlock *bblock = BasicBlock::Create(GlobalContext, "entry", function);
 
     context.pushBlock(bblock);
@@ -156,9 +178,9 @@ Value *FunctionDeclaration::codeGen(CodeGenContext &context)
         arg->codeGen(context);
     }
 
-    block.codeGen(context);
+    block->codeGen(context);
 
-    auto v = ConstantFP::get(GlobalContext, APFloat(0.0));
+    auto v = ConstantInt::get(GlobalContext, APInt(32, 0));
     ReturnInst::Create(GlobalContext, v, bblock);
 
     context.popBlock();

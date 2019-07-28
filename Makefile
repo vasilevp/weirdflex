@@ -3,7 +3,7 @@ GXX_OPTS=-ggdb -O0 -std=c++17 -I `llvm-config --includedir`
 all: 		parser
 
 clean:
-	rm -f parser.cpp parser.hpp parser parser.exe tokens.cpp *.o parser.output
+	rm -f parser.cpp parser.hpp parser tokens.cpp *.o parser.output a.out *.exe
 
 tokens.cpp: tokens.l
 	@echo ":: generating tokens.cpp"

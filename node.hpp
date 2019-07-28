@@ -62,6 +62,13 @@ struct Double : Numeric
 	}
 };
 
+struct String : Expression
+{
+	std::string value;
+	String(const std::string &value) : value(value) {}
+	virtual llvm::Value *codeGen(CodeGenContext &context) override;
+};
+
 struct Identifier : Expression
 {
 	std::string name;
@@ -122,8 +129,8 @@ struct FunctionDeclaration : Statement
 	const Identifier *type;
 	const Identifier &id;
 	const VariableList &args;
-	Block &block;
-	FunctionDeclaration(Identifier *type, Identifier &id, VariableList &args, Block &block) : type(type ? type : &TypeAgnostic), id(id), args(args), block(block) {}
+	Block *block;
+	FunctionDeclaration(Identifier *type, Identifier &id, VariableList &args, Block *block) : type(type ? type : &TypeAgnostic), id(id), args(args), block(block) {}
 	virtual llvm::Value *codeGen(CodeGenContext &context) override;
 };
 }; // namespace Node
