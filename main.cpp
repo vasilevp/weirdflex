@@ -12,17 +12,17 @@ extern int yydebug;
 int main(int argc, char **argv)
 {
 #ifdef _DEBUG
-    yydebug = 1;
+	yydebug = 1;
 #endif
 
-    if (yyparse())
-    {
-        return 1;
-    }
+	if (yyparse())
+	{
+		return 1;
+	}
 
-    CodeGenContext context;
-    context.generateCode(*programBlock);
-    context.buildObject();
+	CodeGenContext context;
+	context.generateCode(*programBlock);
+	context.buildObject();
 
-    return 0;
+	return 0;
 }

@@ -21,79 +21,79 @@ using namespace std::literals;
 
 CodeGenContext::CodeGenContext()
 {
-    module = llvm::make_unique<Module>("main module", GlobalContext);
+	module = llvm::make_unique<Module>("main module", GlobalContext);
 
-    // Initialize the target registry etc.
-    InitializeAllTargetInfos();
-    InitializeAllTargets();
-    InitializeAllTargetMCs();
-    InitializeAllAsmParsers();
-    InitializeAllAsmPrinters();
+	// Initialize the target registry etc.
+	InitializeAllTargetInfos();
+	InitializeAllTargets();
+	InitializeAllTargetMCs();
+	InitializeAllAsmParsers();
+	InitializeAllAsmPrinters();
 }
 
 void CodeGenContext::generateCode(Node::Block &root)
 {
-    std::cout << "Generating code...\n";
+	std::cout << "Generating code...\n";
 
-    root.codeGen(*this);
+	root.codeGen(*this);
 
-    std::cout << "Code is generated.\n";
+	std::cout << "Code is generated.\n";
 
-    /* Print the bytecode in a human-readable format 
-       to see if our program compiled properly
-     */
-    legacy::PassManager pm;
-    pm.add(createPrintModulePass(outs()));
-    pm.run(*module);
+	/* Print the bytecode in a human-readable format 
+	   to see if our program compiled properly
+	 */
+	legacy::PassManager pm;
+	pm.add(createPrintModulePass(outs()));
+	pm.run(*module);
 }
 
 void CodeGenContext::buildObject()
 {
-    auto targetTriple = sys::getDefaultTargetTriple();
-    module->setTargetTriple(targetTriple);
+	auto targetTriple = sys::getDefaultTargetTriple();
+	module->setTargetTriple(targetTriple);
 
-    std::string Error;
-    auto target = TargetRegistry::lookupTarget(targetTriple, Error);
+	std::string Error;
+	auto target = TargetRegistry::lookupTarget(targetTriple, Error);
 
-    if (!target)
-    {
-        errs() << Error;
-        return;
-    }
+	if (!target)
+	{
+		errs() << Error;
+		return;
+	}
 
-    auto CPU = "generic";
-    auto Features = "";
+	auto CPU = "generic";
+	auto Features = "";
 
-    TargetOptions opt;
-    auto RM = Optional<Reloc::Model>(Reloc::Model::PIC_);
-    auto targetMachine = target->createTargetMachine(targetTriple, CPU, Features, opt, RM);
+	TargetOptions opt;
+	auto RM = Optional<Reloc::Model>(Reloc::Model::PIC_);
+	auto targetMachine = target->createTargetMachine(targetTriple, CPU, Features, opt, RM);
 
-    module->setDataLayout(targetMachine->createDataLayout());
+	module->setDataLayout(targetMachine->createDataLayout());
 
-    auto filename = "output.o";
-    std::error_code EC;
-    raw_fd_ostream dest(filename, EC, sys::fs::F_None);
+	auto filename = "output.o";
+	std::error_code EC;
+	raw_fd_ostream dest(filename, EC, sys::fs::F_None);
 
-    if (EC)
-    {
-        errs() << "Could not open file: " << EC.message();
-        return;
-    }
+	if (EC)
+	{
+		errs() << "Could not open file: " << EC.message();
+		return;
+	}
 
-    legacy::PassManager pass;
+	legacy::PassManager pass;
 
 #ifdef __MINGW32__
-    if (targetMachine->addPassesToEmitFile(pass, dest, nullptr, TargetMachine::CGFT_ObjectFile, false, nullptr))
+	if (targetMachine->addPassesToEmitFile(pass, dest, nullptr, TargetMachine::CGFT_ObjectFile, false, nullptr))
 #else
-    if (targetMachine->addPassesToEmitFile(pass, dest, /* nullptr, */ TargetMachine::CGFT_ObjectFile, false, nullptr))
+	if (targetMachine->addPassesToEmitFile(pass, dest, /* nullptr, */ TargetMachine::CGFT_ObjectFile, false, nullptr))
 #endif
-    {
-        errs() << "TheTargetMachine can't emit a file of this type";
-        return;
-    }
+	{
+		errs() << "TheTargetMachine can't emit a file of this type";
+		return;
+	}
 
-    pass.run(*module);
-    dest.flush();
+	pass.run(*module);
+	dest.flush();
 
-    outs() << targetTriple << ": Wrote " << filename << " (" << dest.tell() << " bytes)\n";
+	outs() << targetTriple << ": Wrote " << filename << " (" << dest.tell() << " bytes)\n";
 }

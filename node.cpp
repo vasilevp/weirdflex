@@ -27,184 +27,184 @@ const Identifier Node::TypeAgnostic = Identifier("_untyped");
 
 static Type *typeOf(const Identifier &type)
 {
-    if (type.name == "int")
-    {
-        return Type::getInt64Ty(GlobalContext);
-    }
-    else if (type.name == "double")
-    {
-        return Type::getDoubleTy(GlobalContext);
-    }
-    else if (type.name == "_untyped")
-    {
-        return Type::getInt64PtrTy(GlobalContext);
-    }
-    else if (type.name == "string")
-    {
-        return Type::getInt8PtrTy(GlobalContext);
-    }
-    return Type::getVoidTy(GlobalContext);
+	if (type.name == "int")
+	{
+		return Type::getInt64Ty(GlobalContext);
+	}
+	else if (type.name == "double")
+	{
+		return Type::getDoubleTy(GlobalContext);
+	}
+	else if (type.name == "_untyped")
+	{
+		return Type::getInt64PtrTy(GlobalContext);
+	}
+	else if (type.name == "string")
+	{
+		return Type::getInt8PtrTy(GlobalContext);
+	}
+	return Type::getVoidTy(GlobalContext);
 }
 
 Value *Integer::codeGen(CodeGenContext &context) const
 {
-    return ConstantInt::get(GlobalContext, APInt(64, value, false));
+	return ConstantInt::get(GlobalContext, APInt(64, value, false));
 }
 
 Value *Double::codeGen(CodeGenContext &context) const
 {
-    return ConstantFP::get(GlobalContext, APFloat(value));
+	return ConstantFP::get(GlobalContext, APFloat(value));
 }
 
 Value *String::codeGen(CodeGenContext &context) const
 {
-    Constant *StrConstant = ConstantDataArray::getString(GlobalContext, value);
-    Module &M = *context.currentBlock()->getParent()->getParent();
-    auto *GV = new GlobalVariable(M, StrConstant->getType(), true, GlobalValue::PrivateLinkage, StrConstant);
-    GV->setUnnamedAddr(GlobalValue::UnnamedAddr::Global);
-    GV->setAlignment(1);
+	Constant *StrConstant = ConstantDataArray::getString(GlobalContext, value);
+	Module &M = *context.currentBlock()->getParent()->getParent();
+	auto *GV = new GlobalVariable(M, StrConstant->getType(), true, GlobalValue::PrivateLinkage, StrConstant);
+	GV->setUnnamedAddr(GlobalValue::UnnamedAddr::Global);
+	GV->setAlignment(1);
 
-    Constant *Zero = ConstantInt::get(Type::getInt32Ty(GlobalContext), 0);
-    Constant *Indices[] = {Zero, Zero};
-    return ConstantExpr::getInBoundsGetElementPtr(GV->getValueType(), GV, Indices);
+	Constant *Zero = ConstantInt::get(Type::getInt32Ty(GlobalContext), 0);
+	Constant *Indices[] = {Zero, Zero};
+	return ConstantExpr::getInBoundsGetElementPtr(GV->getValueType(), GV, Indices);
 }
 
 Value *Identifier::codeGen(CodeGenContext &context) const
 {
-    if (context.locals().find(name) == context.locals().end())
-    {
-        cerr << "undeclared variable " << name << '\n';
-        return NULL;
-    }
-    return new LoadInst(context.locals()[name], "", false, context.currentBlock());
+	if (context.locals().find(name) == context.locals().end())
+	{
+		cerr << "undeclared variable " << name << '\n';
+		return NULL;
+	}
+	return new LoadInst(context.locals()[name], "", false, context.currentBlock());
 }
 
 Value *Block::codeGen(CodeGenContext &context) const
 {
-    int r = rand();
-    Value *last = nullptr;
-    for (auto s : stmts)
-    {
-        last = s->codeGen(context);
-    }
+	int r = rand();
+	Value *last = nullptr;
+	for (auto s : stmts)
+	{
+		last = s->codeGen(context);
+	}
 
-    return last;
+	return last;
 }
 
 Value *Assignment::codeGen(CodeGenContext &context) const
 {
-    auto it = context.locals().find(lhs.name);
-    if (it == context.locals().end())
-    {
-        throw runtime_error("undeclared variable: " + lhs.name);
-    }
-    return new StoreInst(rhs.codeGen(context), it->second, false, context.currentBlock());
+	auto it = context.locals().find(lhs.name);
+	if (it == context.locals().end())
+	{
+		throw runtime_error("undeclared variable: " + lhs.name);
+	}
+	return new StoreInst(rhs.codeGen(context), it->second, false, context.currentBlock());
 }
 
 Value *Node::BinaryOperator::codeGen(CodeGenContext &context) const
 {
-    Instruction::BinaryOps instr;
+	Instruction::BinaryOps instr;
 
-    switch (op)
-    {
-    case PLUS:
-        instr = Instruction::Add;
-        break;
-    case MINUS:
-        instr = Instruction::Sub;
-        break;
-    case MUL:
-        instr = Instruction::Mul;
-        break;
-    case DIV:
-        instr = Instruction::SDiv;
-        break;
+	switch (op)
+	{
+	case PLUS:
+		instr = Instruction::Add;
+		break;
+	case MINUS:
+		instr = Instruction::Sub;
+		break;
+	case MUL:
+		instr = Instruction::Mul;
+		break;
+	case DIV:
+		instr = Instruction::SDiv;
+		break;
 
-    default:
-        return nullptr;
-    }
+	default:
+		return nullptr;
+	}
 
-    return llvm::BinaryOperator::Create(instr, lhs.codeGen(context), rhs.codeGen(context), "", context.currentBlock());
+	return llvm::BinaryOperator::Create(instr, lhs.codeGen(context), rhs.codeGen(context), "", context.currentBlock());
 }
 
 Value *FunctionDeclaration::codeGen(CodeGenContext &context) const
 {
-    vector<Type *> argTypes;
-    for (auto arg : args)
-    {
-        argTypes.push_back(typeOf(*arg->type));
-    }
+	vector<Type *> argTypes;
+	for (auto arg : args)
+	{
+		argTypes.push_back(typeOf(*arg->type));
+	}
 
-    FunctionType *ftype = FunctionType::get(Type::getInt32Ty(GlobalContext), argTypes, args.variadic);
-    Function *function = Function::Create(ftype, GlobalValue::ExternalLinkage, id.name, context.module.get());
+	FunctionType *ftype = FunctionType::get(Type::getInt32Ty(GlobalContext), argTypes, args.variadic);
+	Function *function = Function::Create(ftype, GlobalValue::ExternalLinkage, id.name, context.module.get());
 
-    if (!block)
-    {
-        return function;
-    }
+	if (!block)
+	{
+		return function;
+	}
 
-    BasicBlock *bblock = BasicBlock::Create(GlobalContext, "entry", function);
+	BasicBlock *bblock = BasicBlock::Create(GlobalContext, "entry", function);
 
-    context.pushBlock(bblock);
+	context.pushBlock(bblock);
 
-    args.codeGen(context);
+	args.codeGen(context);
 
-    block->codeGen(context);
+	block->codeGen(context);
 
-    auto v = ConstantInt::get(GlobalContext, APInt(32, 0));
-    ReturnInst::Create(GlobalContext, v, bblock);
+	auto v = ConstantInt::get(GlobalContext, APInt(32, 0));
+	ReturnInst::Create(GlobalContext, v, bblock);
 
-    context.popBlock();
-    return function;
+	context.popBlock();
+	return function;
 }
 
 Value *MethodCall::codeGen(CodeGenContext &context) const
 {
-    Function *function = context.module->getFunction(id.name);
-    if (function == nullptr)
-    {
-        throw runtime_error("function '" + id.name + "' not found");
-    }
+	Function *function = context.module->getFunction(id.name);
+	if (function == nullptr)
+	{
+		throw runtime_error("function '" + id.name + "' not found");
+	}
 
-    std::vector<Value *> argv;
-    for (auto arg : args)
-    {
-        argv.push_back(arg->codeGen(context));
-    }
+	std::vector<Value *> argv;
+	for (auto arg : args)
+	{
+		argv.push_back(arg->codeGen(context));
+	}
 
-    CallInst *call = CallInst::Create(function, argv, "", context.currentBlock());
-    return call;
+	CallInst *call = CallInst::Create(function, argv, "", context.currentBlock());
+	return call;
 }
 
 Value *VariableDeclaration::codeGen(CodeGenContext &context) const
 {
-    if (!id) // extern function decl, no code generation needed
-    {
-        return nullptr;
-    }
+	if (!id) // extern function decl, no code generation needed
+	{
+		return nullptr;
+	}
 
-    AllocaInst *alloc = new AllocaInst(typeOf(*type), 0, id->name, context.currentBlock());
-    context.locals()[id->name] = alloc;
-    if (rhs != nullptr)
-    {
-        Assignment assn(*id, *rhs);
-        assn.codeGen(context);
-    }
-    return alloc;
+	AllocaInst *alloc = new AllocaInst(typeOf(*type), 0, id->name, context.currentBlock());
+	context.locals()[id->name] = alloc;
+	if (rhs != nullptr)
+	{
+		Assignment assn(*id, *rhs);
+		assn.codeGen(context);
+	}
+	return alloc;
 }
 
 Value *ExpressionStatement::codeGen(CodeGenContext &context) const
 {
-    return expr.codeGen(context);
+	return expr.codeGen(context);
 }
 
 Value *ArgumentList::codeGen(CodeGenContext &context) const
 {
-    Value *result = nullptr;
-    for (auto arg : args)
-    {
-        result = arg->codeGen(context);
-    }
+	Value *result = nullptr;
+	for (auto arg : args)
+	{
+		result = arg->codeGen(context);
+	}
 
-    return result;
+	return result;
 }

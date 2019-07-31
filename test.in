@@ -1,6 +1,6 @@
 extern printf(string, ...)
 
 func main() {
-    let x int = 0
-    printf("Hello world!\n")
+	let x int = 0
+	printf("Hello world!\n")
 }
