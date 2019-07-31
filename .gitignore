@@ -7,3 +7,4 @@ parser.hpp
 *.o
 *.exe
 a.out
+test.*

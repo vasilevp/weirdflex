@@ -1,11 +1,11 @@
-GXX_OPTS=-ggdb -O0 -std=c++17 -I `llvm-config --includedir` -D_DEBUG=1
+GXX_OPTS=-ggdb -O0 -std=c++17 -I `llvm-config --includedir` #-D_DEBUG=1
 
 all: 		parser
 
 clean:
 	rm -f parser.cpp parser.hpp parser tokens.cpp *.o parser.output a.out *.exe
 
-tokens.cpp: tokens.l
+tokens.cpp: tokens.l lexutils.hpp
 	@echo ":: generating tokens.cpp"
 	flex -o tokens.cpp tokens.l
 
