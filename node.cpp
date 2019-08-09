@@ -23,6 +23,17 @@ using namespace Node;
 llvm::LLVMContext Node::GlobalContext;
 IRBuilder<> Builder(GlobalContext);
 
+template <typename K, typename V>
+optional<V> mapfind(const map<K, V> &m, const K &key)
+{
+	if (auto it = m.find(key); it != m.end())
+	{
+		return make_optional(it->second);
+	}
+
+	return {};
+}
+
 static Type *typeOf(const Identifier &type)
 {
 	if (type.name == "int")
@@ -57,23 +68,22 @@ Value *Double::codeGen(CodeGenContext &context) const
 
 Value *String::codeGen(CodeGenContext &context) const
 {
-	Constant *StrConstant = ConstantDataArray::getString(GlobalContext, value);
-	Module &M = *context.module.get();
-	auto *GV = new GlobalVariable(M, StrConstant->getType(), true, GlobalValue::PrivateLinkage, StrConstant);
-	GV->setUnnamedAddr(GlobalValue::UnnamedAddr::Global);
-	GV->setAlignment(1);
-
-	return BitCastInst::Create(BitCastInst::BitCast, GV, Type::getInt8PtrTy(GlobalContext), "", context.currentBlock());
+	return IRBuilder<>(context.currentBlock()).CreateGlobalStringPtr(value);
 }
 
 Value *Identifier::codeGen(CodeGenContext &context) const
 {
-	if (context.locals().find(name) == context.locals().end())
+	if (auto arg = mapfind(context.args(), name))
 	{
-		cerr << "(Identifier) undeclared variable " << name << '\n';
-		return NULL;
+		return *arg;
 	}
-	return new LoadInst(context.locals()[name], "", false, context.currentBlock());
+
+	if (auto local = mapfind(context.locals(), name))
+	{
+		return IRBuilder<>(context.currentBlock()).CreateLoad(*local);
+	}
+
+	throw runtime_error("(Identifier) undeclared variable " + name + '\n');
 }
 
 Value *Block::codeGen(CodeGenContext &context) const
@@ -90,12 +100,13 @@ Value *Block::codeGen(CodeGenContext &context) const
 
 Value *Assignment::codeGen(CodeGenContext &context) const
 {
-	auto it = context.locals().find(lhs.name);
-	if (it == context.locals().end())
+	auto l = mapfind(context.locals(), lhs.name);
+	if (!l)
 	{
 		throw runtime_error("(Assignment) undeclared variable: " + lhs.name);
 	}
-	return new StoreInst(rhs.codeGen(context), it->second, false, context.currentBlock());
+
+	return IRBuilder<>(context.currentBlock()).CreateStore(rhs.codeGen(context), *l);
 }
 
 Value *createArithmeticOp(CodeGenContext &context, Value *left, Value *right, int op)
@@ -121,7 +132,7 @@ Value *createArithmeticOp(CodeGenContext &context, Value *left, Value *right, in
 
 	if (instr != 0)
 	{
-		return llvm::BinaryOperator::Create(instr, left, right, "", context.currentBlock());
+		return IRBuilder<>(context.currentBlock()).CreateBinOp(instr, left, right);
 	}
 
 	return nullptr;
@@ -155,7 +166,7 @@ Value *createIntBinaryOp(CodeGenContext &context, Value *left, Value *right, int
 		throw runtime_error("unsupported operator " + to_string(op));
 	}
 
-	return CmpInst::Create(Instruction::ICmp, pred, left, right, "", context.currentBlock());
+	return IRBuilder<>(context.currentBlock()).CreateICmp(pred, left, right);
 }
 
 Value *createDoubleBinaryOp(CodeGenContext &context, Value *left, Value *right, int op)
@@ -186,7 +197,7 @@ Value *createDoubleBinaryOp(CodeGenContext &context, Value *left, Value *right, 
 		throw runtime_error("unsupported operator " + to_string(op));
 	}
 
-	return CmpInst::Create(Instruction::FCmp, pred, left, right, "", context.currentBlock());
+	return IRBuilder<>(context.currentBlock()).CreateFCmp(pred, left, right);
 }
 
 Value *createOperator(CodeGenContext &context, Value *left, Value *right, int op)
@@ -225,8 +236,7 @@ Value *createOperator(CodeGenContext &context, Value *left, Value *right, int op
 	argv.push_back(left);
 	argv.push_back(right);
 
-	CallInst *call = CallInst::Create(function, argv, "", context.currentBlock());
-	return call;
+	return IRBuilder<>(context.currentBlock()).CreateCall(function, argv);
 }
 
 Value *Node::BinaryOperator::codeGen(CodeGenContext &context) const
@@ -242,9 +252,6 @@ Value *Node::BinaryOperator::codeGen(CodeGenContext &context) const
 
 	auto left = lhs->codeGen(context);
 	auto right = rhs->codeGen(context);
-
-	auto binaryInst = [&](int opcode, CmpInst::Predicate predicate) {};
-	auto cmpInst = [&](int opcode, CmpInst::Predicate predicate) {};
 
 	if (left->getType()->isIntegerTy() && right->getType()->isIntegerTy())
 	{
@@ -280,22 +287,20 @@ Value *FunctionDeclaration::codeGen(CodeGenContext &context) const
 	BasicBlock *bblock = BasicBlock::Create(GlobalContext, "", function);
 	context.pushBlock(bblock);
 
-	Function::arg_iterator argsValues = function->arg_begin();
+	auto argsValues = function->arg_begin();
 	for (auto it = args.begin(); it != args.end(); it++)
 	{
 		auto arg = *it;
-		arg->codeGen(context);
-
 		auto argumentValue = argsValues++;
-		argumentValue->setName("_" + arg->id->name);
-		StoreInst *inst = new StoreInst(argumentValue, context.locals()[arg->id->name], false, bblock);
+		argumentValue->setName(arg->id->name);
+		context.args()[arg->id->name] = argumentValue;
 	}
 
 	block->codeGen(context);
 
 	if (bblock->getTerminator() == nullptr) // implicit 'void' return
 	{
-		ReturnInst::Create(GlobalContext, bblock);
+		return IRBuilder<>(context.currentBlock()).CreateRetVoid();
 	}
 
 	context.popBlock();
@@ -316,8 +321,7 @@ Value *MethodCall::codeGen(CodeGenContext &context) const
 		argv.push_back(arg->codeGen(context));
 	}
 
-	CallInst *call = CallInst::Create(function, argv, "", context.currentBlock());
-	return call;
+	return IRBuilder<>(context.currentBlock()).CreateCall(function, argv);
 }
 
 Value *VariableDeclaration::codeGen(CodeGenContext &context) const
@@ -327,18 +331,17 @@ Value *VariableDeclaration::codeGen(CodeGenContext &context) const
 		return nullptr;
 	}
 
+	auto &store = context.locals()[id->name];
+
 	if (rhs == nullptr)
 	{
-		AllocaInst *alloc = new AllocaInst(typeOf(*type), 0, id->name, context.currentBlock());
-		context.locals()[id->name] = alloc;
-		return alloc;
+		store = IRBuilder<>(context.currentBlock()).CreateAlloca(typeOf(*type), nullptr, id->name);
+		return store;
 	}
 
 	Value *rhsResult = rhs->codeGen(context);
-	AllocaInst *alloc = new AllocaInst(type ? typeOf(*type) : rhsResult->getType(), 0, id->name, context.currentBlock());
-	context.locals()[id->name] = alloc;
-
-	return Assignment(*id, *rhs).codeGen(context);
+	store = IRBuilder<>(context.currentBlock()).CreateAlloca(type ? typeOf(*type) : rhsResult->getType(), nullptr, id->name);
+	return IRBuilder<>(context.currentBlock()).CreateStore(rhsResult, store);
 }
 
 Value *ExpressionStatement::codeGen(CodeGenContext &context) const
@@ -353,7 +356,7 @@ Value *ArgumentList::codeGen(CodeGenContext &context) const
 	{
 		result = arg->codeGen(context);
 		result->setName(arg->id->name);
-		StoreInst *inst = new StoreInst(context.locals()[arg->id->name], result, false, context.currentBlock());
+		IRBuilder<>(context.currentBlock()).CreateStore(context.locals()[arg->id->name], result);
 	}
 
 	return result;
@@ -361,15 +364,20 @@ Value *ArgumentList::codeGen(CodeGenContext &context) const
 
 Value *ReturnStatement::codeGen(CodeGenContext &context) const
 {
-	return ReturnInst::Create(GlobalContext, rhs.codeGen(context), context.currentBlock());
+	return IRBuilder<>(context.currentBlock()).CreateRet(rhs.codeGen(context));
 }
 
 Value *AddressOf::codeGen(CodeGenContext &context) const
 {
-	if (context.locals().find(ident->name) == context.locals().end())
+	if (auto arg = mapfind(context.args(), ident->name))
 	{
-		cerr << "(Identifier) undeclared variable " << ident->name << '\n';
-		return NULL;
+		return *arg;
 	}
-	return context.locals()[ident->name];
+
+	if (auto local = mapfind(context.locals(), ident->name))
+	{
+		return *local;
+	}
+
+	throw runtime_error("(Identifier) undeclared variable " + ident->name + '\n');
 }

@@ -29,7 +29,7 @@ node.o: node.cpp node.hpp
 	@echo ":: building node.o"
 	g++ ${GXX_OPTS} -c node.cpp
 
-codegen.o: codegen.cpp
+codegen.o: codegen.cpp codegen.hpp
 	@echo ":: building codegen.o"
 	g++ ${GXX_OPTS} -c codegen.cpp
 

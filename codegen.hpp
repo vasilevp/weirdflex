@@ -4,6 +4,7 @@
 #include <stack>
 #include <llvm/IR/Constants.h>
 #include <llvm/IR/Module.h>
+#include <llvm/IR/IRBuilder.h>
 
 namespace Node
 {
@@ -13,6 +14,7 @@ struct Block;
 struct CodeGenBlock
 {
 	llvm::BasicBlock *block;
+	std::map<std::string, llvm::Value *> args;
 	std::map<std::string, llvm::Value *> locals;
 };
 
@@ -24,7 +26,12 @@ struct CodeGenContext
 
 	CodeGenContext();
 
-	std::map<std::string, llvm::Value *> &locals()
+	auto &args()
+	{
+		return blocks.top().args;
+	}
+
+	auto &locals()
 	{
 		return blocks.top().locals;
 	}
@@ -36,7 +43,7 @@ struct CodeGenContext
 
 	void pushBlock(llvm::BasicBlock *block)
 	{
-		blocks.push(CodeGenBlock{block : block, locals : {}});
+		blocks.push(CodeGenBlock{block : block, args : {}, locals : {}});
 	}
 
 	void popBlock()
