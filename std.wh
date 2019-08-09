@@ -1,14 +1,14 @@
 /* C bindings */
 
-extern printf(string, ...) int
-extern scanf(string, ...) int
-extern puts(string) int
-extern getchar() int
+func printf(string, ...) int extern
+func scanf(string, ...) int extern
+func puts(string) int extern
+func getchar() int extern
 
-extern malloc(int) string
-extern calloc(int, int) string
-extern strlen(string) int
-extern strcat(string, string) string
+func malloc(int) string extern
+func calloc(int, int) string extern
+func strlen(string) int extern
+func strcat(string, string) string extern
 
 /* Standard Library */
 func concat(a string, b string) string {

@@ -89,8 +89,8 @@ var_decl	: LET ident ident ASSIGN expr	{ $$ = new VariableDeclaration($3, $2, $5
 
 func_decl	: FUNC ident LPAREN func_decl_arg_set RPAREN ident block	{ $$ = new FunctionDeclaration($6, $2, *$4, $7); }
 			| FUNC ident LPAREN func_decl_arg_set RPAREN block			{ $$ = new FunctionDeclaration(nullptr, $2, *$4, $6); }
-			| EXTERN ident LPAREN func_decl_arg_set RPAREN ident		{ $$ = new FunctionDeclaration($6, $2, *$4, nullptr); }
-			| EXTERN ident LPAREN func_decl_arg_set RPAREN				{ $$ = new FunctionDeclaration(nullptr, $2, *$4, nullptr); }
+			| FUNC ident LPAREN func_decl_arg_set RPAREN ident EXTERN	{ $$ = new FunctionDeclaration($6, $2, *$4, nullptr); }
+			| FUNC ident LPAREN func_decl_arg_set RPAREN EXTERN			{ $$ = new FunctionDeclaration(nullptr, $2, *$4, nullptr); }
 			;
 
 func_expr	: FUNC LPAREN func_decl_arg_set RPAREN ident block	{ $$ = new FunctionDeclaration($5, nullptr, *$3, $6); }
@@ -120,7 +120,7 @@ numeric	: INTEGER		{ $$ = new Integer(atol($1->c_str())); }
 		;
 
 string	: STRING %prec REDUCE	{ $$ = new String(*$1); }
-		| STRING STRING			{ $$ = new String(std::string(*$1) + *$2); }
+		// | STRING STRING			{ $$ = new String(std::string(*$1) + *$2); }
 		;
 
 expr	: ident ASSIGN expr					{ $$ = new Assignment(*$1, *$3); }

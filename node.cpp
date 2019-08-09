@@ -21,7 +21,11 @@ using namespace std;
 using namespace Node;
 
 llvm::LLVMContext Node::GlobalContext;
-IRBuilder<> Builder(GlobalContext);
+
+IRBuilder<> getBuilder(CodeGenContext &context)
+{
+	return IRBuilder<>(context.currentBlock());
+}
 
 template <typename K, typename V>
 optional<V> mapfind(const map<K, V> &m, const K &key)
@@ -68,7 +72,7 @@ Value *Double::codeGen(CodeGenContext &context) const
 
 Value *String::codeGen(CodeGenContext &context) const
 {
-	return IRBuilder<>(context.currentBlock()).CreateGlobalStringPtr(value);
+	return getBuilder(context).CreateGlobalStringPtr(value);
 }
 
 Value *Identifier::codeGen(CodeGenContext &context) const
@@ -80,7 +84,7 @@ Value *Identifier::codeGen(CodeGenContext &context) const
 
 	if (auto local = mapfind(context.locals(), name))
 	{
-		return IRBuilder<>(context.currentBlock()).CreateLoad(*local);
+		return getBuilder(context).CreateLoad(*local);
 	}
 
 	throw runtime_error("(Identifier) undeclared variable " + name + '\n');
@@ -106,7 +110,7 @@ Value *Assignment::codeGen(CodeGenContext &context) const
 		throw runtime_error("(Assignment) undeclared variable: " + lhs.name);
 	}
 
-	return IRBuilder<>(context.currentBlock()).CreateStore(rhs.codeGen(context), *l);
+	return getBuilder(context).CreateStore(rhs.codeGen(context), *l);
 }
 
 Value *createArithmeticOp(CodeGenContext &context, Value *left, Value *right, int op)
@@ -132,7 +136,7 @@ Value *createArithmeticOp(CodeGenContext &context, Value *left, Value *right, in
 
 	if (instr != 0)
 	{
-		return IRBuilder<>(context.currentBlock()).CreateBinOp(instr, left, right);
+		return getBuilder(context).CreateBinOp(instr, left, right);
 	}
 
 	return nullptr;
@@ -166,7 +170,7 @@ Value *createIntBinaryOp(CodeGenContext &context, Value *left, Value *right, int
 		throw runtime_error("unsupported operator " + to_string(op));
 	}
 
-	return IRBuilder<>(context.currentBlock()).CreateICmp(pred, left, right);
+	return getBuilder(context).CreateICmp(pred, left, right);
 }
 
 Value *createDoubleBinaryOp(CodeGenContext &context, Value *left, Value *right, int op)
@@ -197,58 +201,12 @@ Value *createDoubleBinaryOp(CodeGenContext &context, Value *left, Value *right, 
 		throw runtime_error("unsupported operator " + to_string(op));
 	}
 
-	return IRBuilder<>(context.currentBlock()).CreateFCmp(pred, left, right);
-}
-
-Value *createOperator(CodeGenContext &context, Value *left, Value *right, int op)
-{
-	string name = "_operator_";
-
-#define CREATE_CASE(x) \
-	case x:            \
-		name += #x;    \
-		break;
-
-	switch (op)
-	{
-		CREATE_CASE(PLUS)
-		CREATE_CASE(MINUS)
-		CREATE_CASE(MUL)
-		CREATE_CASE(DIV)
-		CREATE_CASE(EQ)
-		CREATE_CASE(NE)
-		CREATE_CASE(LT)
-		CREATE_CASE(GT)
-		CREATE_CASE(LE)
-		CREATE_CASE(GE)
-
-	default:
-		throw runtime_error("unsupported operator" + to_string(op));
-	}
-
-	Function *function = context.module->getFunction(name);
-	if (function == nullptr)
-	{
-		throw runtime_error("cannot find overloaded operator " + name);
-	}
-
-	vector<Value *> argv;
-	argv.push_back(left);
-	argv.push_back(right);
-
-	return IRBuilder<>(context.currentBlock()).CreateCall(function, argv);
+	return getBuilder(context).CreateFCmp(pred, left, right);
 }
 
 Value *Node::BinaryOperator::codeGen(CodeGenContext &context) const
 {
 	CmpInst::Predicate pred;
-
-	auto lefts = dynamic_cast<String *>(lhs);
-	auto rights = dynamic_cast<String *>(rhs);
-	if (lefts && rights)
-	{
-		return String(lefts->value + rights->value).codeGen(context);
-	}
 
 	auto left = lhs->codeGen(context);
 	auto right = rhs->codeGen(context);
@@ -263,7 +221,7 @@ Value *Node::BinaryOperator::codeGen(CodeGenContext &context) const
 		return createDoubleBinaryOp(context, left, right, op);
 	}
 
-	return createOperator(context, left, right, op);
+	throw runtime_error("operator not implemented for these arguments");
 }
 
 Value *FunctionDeclaration::codeGen(CodeGenContext &context) const
@@ -276,7 +234,7 @@ Value *FunctionDeclaration::codeGen(CodeGenContext &context) const
 
 	auto returnType = type ? typeOf(*type) : Type::getVoidTy(GlobalContext);
 	FunctionType *ftype = FunctionType::get(returnType, argTypes, args.variadic);
-	auto linkage = id->name.front() == '_' ? GlobalValue::InternalLinkage : GlobalValue::ExternalLinkage;
+	auto linkage = (id->name.empty() || id->name.front() == '_') ? GlobalValue::InternalLinkage : GlobalValue::ExternalLinkage;
 	Function *function = Function::Create(ftype, linkage, id->name, context.module.get());
 
 	if (!block) // declaration
@@ -300,7 +258,7 @@ Value *FunctionDeclaration::codeGen(CodeGenContext &context) const
 
 	if (bblock->getTerminator() == nullptr) // implicit 'void' return
 	{
-		return IRBuilder<>(context.currentBlock()).CreateRetVoid();
+		return getBuilder(context).CreateRetVoid();
 	}
 
 	context.popBlock();
@@ -321,7 +279,7 @@ Value *MethodCall::codeGen(CodeGenContext &context) const
 		argv.push_back(arg->codeGen(context));
 	}
 
-	return IRBuilder<>(context.currentBlock()).CreateCall(function, argv);
+	return getBuilder(context).CreateCall(function, argv);
 }
 
 Value *VariableDeclaration::codeGen(CodeGenContext &context) const
@@ -335,13 +293,13 @@ Value *VariableDeclaration::codeGen(CodeGenContext &context) const
 
 	if (rhs == nullptr)
 	{
-		store = IRBuilder<>(context.currentBlock()).CreateAlloca(typeOf(*type), nullptr, id->name);
+		store = getBuilder(context).CreateAlloca(typeOf(*type), nullptr, id->name);
 		return store;
 	}
 
 	Value *rhsResult = rhs->codeGen(context);
-	store = IRBuilder<>(context.currentBlock()).CreateAlloca(type ? typeOf(*type) : rhsResult->getType(), nullptr, id->name);
-	return IRBuilder<>(context.currentBlock()).CreateStore(rhsResult, store);
+	store = getBuilder(context).CreateAlloca(type ? typeOf(*type) : rhsResult->getType(), nullptr, id->name);
+	return getBuilder(context).CreateStore(rhsResult, store);
 }
 
 Value *ExpressionStatement::codeGen(CodeGenContext &context) const
@@ -356,7 +314,7 @@ Value *ArgumentList::codeGen(CodeGenContext &context) const
 	{
 		result = arg->codeGen(context);
 		result->setName(arg->id->name);
-		IRBuilder<>(context.currentBlock()).CreateStore(context.locals()[arg->id->name], result);
+		getBuilder(context).CreateStore(context.locals()[arg->id->name], result);
 	}
 
 	return result;
@@ -364,7 +322,7 @@ Value *ArgumentList::codeGen(CodeGenContext &context) const
 
 Value *ReturnStatement::codeGen(CodeGenContext &context) const
 {
-	return IRBuilder<>(context.currentBlock()).CreateRet(rhs.codeGen(context));
+	return getBuilder(context).CreateRet(rhs.codeGen(context));
 }
 
 Value *AddressOf::codeGen(CodeGenContext &context) const
