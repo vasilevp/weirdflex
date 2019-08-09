@@ -5,13 +5,14 @@
 #include <llvm/IR/LegacyPassManager.h>
 #include <llvm/IR/IRPrintingPasses.h>
 #include <llvm/ExecutionEngine/ExecutionEngine.h>
-#include "llvm/Support/FileSystem.h"
+#include <llvm/Support/FileSystem.h>
 #include "llvm/Support/Host.h"
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/Support/TargetRegistry.h"
 #include "llvm/Support/TargetSelect.h"
 #include "llvm/Target/TargetMachine.h"
 #include "llvm/Target/TargetOptions.h"
+#include <unistd.h>
 
 #include "node.hpp"
 
@@ -47,7 +48,7 @@ void CodeGenContext::generateCode(Node::Block &root)
 	pm.run(*module);
 }
 
-void CodeGenContext::buildObject()
+void CodeGenContext::buildObject(const std::string &filename)
 {
 	auto targetTriple = sys::getDefaultTargetTriple();
 	module->setTargetTriple(targetTriple);
@@ -70,7 +71,6 @@ void CodeGenContext::buildObject()
 
 	module->setDataLayout(targetMachine->createDataLayout());
 
-	auto filename = "output.o";
 	std::error_code EC;
 	raw_fd_ostream dest(filename, EC, sys::fs::F_None);
 
@@ -96,4 +96,21 @@ void CodeGenContext::buildObject()
 	dest.flush();
 
 	outs() << targetTriple << ": Wrote " << filename << " (" << dest.tell() << " bytes)\n";
+}
+
+void CodeGenContext::buildExecutable(const std::string &output, const std::string &input)
+{
+	char *argv[] = {
+		"gcc",
+		const_cast<char *>(input.c_str()),
+		"-o",
+		const_cast<char *>(output.c_str()),
+	};
+
+	// outs() << "trying to call gcc with " << argv[0] << ", " << argv[1] << ", " << argv[2] << '\n';
+
+	if (int err = execv("/mingw64/bin/gcc", argv); err != 0)
+	{
+		perror(nullptr);
+	}
 }

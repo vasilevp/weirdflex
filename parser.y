@@ -25,14 +25,14 @@
 
 /* terminals */
 %token <string> IDENTIFIER INTEGER DOUBLE STRING
-%token <token> EQ NE LT GT LE GE ASSIGN LET FUNC EXTERN
+%token <token> EQ NE LT GT LE GE ASSIGN LET FUNC EXTERN RETURN
 %token <token> LPAREN RPAREN LBRACE RBRACE COMMA DOT ELLIPSIS
-%token <token> PLUS MINUS MUL DIV
+%token <token> PLUS MINUS MUL DIV AMP
 
 /* nonterminals */
 
 %type <ident> ident
-%type <expr> numeric expr string
+%type <expr> numeric expr string func_expr
 %type <arglist> func_decl_args func_decl_arg_set
 %type <exprlist> call_args
 %type <block> program stmts block
@@ -57,8 +57,8 @@
 %precedence PLUS MINUS	// 6: a+b a-b
 %precedence MUL DIV		// 5: a*b a/b a%b
 						// 4: . ->
-%nonassoc UMINUS		// 3 R: ++a --a +a -a ! ~ (type) *a &a sizeof new new[] delete delete[]
-// %precedence FCALL		// 2: a++ a-- type() func_call()
+%precedence UMINUS		// 3 R: ++a --a +a -a ! ~ (type) *a &a sizeof new new[] delete delete[]
+%precedence LPAREN		// 2: a++ a-- type() func_call()
 						// 1: A::B
 
 %start program
@@ -74,7 +74,8 @@ stmts	: stmt			{ $$ = new Block(); $$->stmts.push_back($1); }
 
 stmt	: var_decl
 		| func_decl
-		| expr %prec REDUCE	{ $$ = new ExpressionStatement(*$1); }
+		| RETURN expr %prec REDUCE	{ $$ = new ReturnStatement(*$2); }
+		| expr %prec REDUCE			{ $$ = new ExpressionStatement(*$1); }
 		;
 
 block	: LBRACE stmts RBRACE	{ $$ = $2; }
@@ -86,10 +87,15 @@ var_decl	: LET ident ident ASSIGN expr	{ $$ = new VariableDeclaration($3, $2, $5
 			| ident DECLAS expr				{ $$ = new VariableDeclaration(nullptr, $1, $3); }
 			;
 
-func_decl	: FUNC ident LPAREN func_decl_arg_set RPAREN ident block	{ $$ = new FunctionDeclaration($6, *$2, *$4, $7); }
-			| FUNC ident LPAREN func_decl_arg_set RPAREN block			{ $$ = new FunctionDeclaration(nullptr, *$2, *$4, $6); }
-			| EXTERN ident LPAREN func_decl_arg_set RPAREN				{ $$ = new FunctionDeclaration(nullptr, *$2, *$4, nullptr); }
+func_decl	: FUNC ident LPAREN func_decl_arg_set RPAREN ident block	{ $$ = new FunctionDeclaration($6, $2, *$4, $7); }
+			| FUNC ident LPAREN func_decl_arg_set RPAREN block			{ $$ = new FunctionDeclaration(nullptr, $2, *$4, $6); }
+			| EXTERN ident LPAREN func_decl_arg_set RPAREN ident		{ $$ = new FunctionDeclaration($6, $2, *$4, nullptr); }
+			| EXTERN ident LPAREN func_decl_arg_set RPAREN				{ $$ = new FunctionDeclaration(nullptr, $2, *$4, nullptr); }
 			;
+
+func_expr	: FUNC LPAREN func_decl_arg_set RPAREN ident block	{ $$ = new FunctionDeclaration($5, nullptr, *$3, $6); }
+			| FUNC LPAREN func_decl_arg_set RPAREN block		{ $$ = new FunctionDeclaration(nullptr, nullptr, *$3, $5); }
+
 
 func_decl_arg	: ident ident	{ $$ = new VariableDeclaration($2, $1, nullptr); }
 				| ident			{ $$ = new VariableDeclaration($1, nullptr, nullptr); }
@@ -113,7 +119,8 @@ numeric	: INTEGER		{ $$ = new Integer(atol($1->c_str())); }
 		| MINUS DOUBLE	{ $$ = new Double(-atof($2->c_str())); }
 		;
 
-string	: STRING	{ $$ = new String(*$1); }
+string	: STRING %prec REDUCE	{ $$ = new String(*$1); }
+		| STRING STRING			{ $$ = new String(std::string(*$1) + *$2); }
 		;
 
 expr	: ident ASSIGN expr					{ $$ = new Assignment(*$1, *$3); }
@@ -121,12 +128,14 @@ expr	: ident ASSIGN expr					{ $$ = new Assignment(*$1, *$3); }
 		| ident	%prec REDUCE				{ $$ = $1; }
 		| numeric
 		| string
-		| expr binaryop expr %prec UMINUS	{ $$ = new BinaryOperator(*$1, $2, *$3); }
+		| func_expr
+		| expr binaryop expr %prec UMINUS	{ $$ = new BinaryOperator($1, $2, $3); }
 		| LPAREN expr RPAREN				{ $$ = $2; }
+		| AMP ident							{ $$ = new AddressOf($2); }
 		;
 
 call_args	: %empty				{ $$ = new ExpressionList(); }
-			| expr					{ $$ = new ExpressionList(); $$->push_back($1); }
+			| expr %prec REDUCE		{ $$ = new ExpressionList(); $$->push_back($1); }
 			| call_args COMMA expr	{ $1->push_back($3); }
 			;
 

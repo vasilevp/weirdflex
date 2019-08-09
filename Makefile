@@ -25,7 +25,7 @@ main.o: main.cpp
 	@echo ":: building main.o"
 	g++ ${GXX_OPTS} -c main.cpp
 
-node.o: node.cpp
+node.o: node.cpp node.hpp
 	@echo ":: building node.o"
 	g++ ${GXX_OPTS} -c node.cpp
 

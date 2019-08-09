@@ -17,8 +17,6 @@ struct ArgumentList;
 using StatementList = std::vector<Statement *>;
 using ExpressionList = std::vector<Expression *>;
 
-extern const Identifier TypeAgnostic;
-
 extern llvm::LLVMContext GlobalContext;
 
 struct NodeBase
@@ -87,9 +85,9 @@ struct MethodCall : Expression
 struct BinaryOperator : Expression
 {
 	int op;
-	Expression &lhs;
-	Expression &rhs;
-	BinaryOperator(Expression &lhs, int op, Expression &rhs) : op(op), lhs(lhs), rhs(rhs) {}
+	Expression *lhs;
+	Expression *rhs;
+	BinaryOperator(Expression *lhs, int op, Expression *rhs) : op(op), lhs(lhs), rhs(rhs) {}
 	virtual llvm::Value *codeGen(CodeGenContext &context) const override;
 };
 
@@ -115,22 +113,29 @@ struct ExpressionStatement : Statement
 	virtual llvm::Value *codeGen(CodeGenContext &context) const override;
 };
 
+struct ReturnStatement : Statement
+{
+	const Expression &rhs;
+	ReturnStatement(const Expression &rhs) : rhs(rhs) {}
+	virtual llvm::Value *codeGen(CodeGenContext &context) const override;
+};
+
 struct VariableDeclaration : Statement
 {
 	const Identifier *type;
 	const Identifier *id;
 	Expression *rhs;
-	VariableDeclaration(Identifier *type, Identifier *id, Expression *rhs) : type(type ? type : &TypeAgnostic), id(id), rhs(rhs) {}
+	VariableDeclaration(Identifier *type, Identifier *id, Expression *rhs) : type(type), id(id), rhs(rhs) {}
 	virtual llvm::Value *codeGen(CodeGenContext &context) const override;
 };
 
-struct FunctionDeclaration : Statement
+struct FunctionDeclaration : Expression, Statement
 {
 	const Identifier *type;
-	const Identifier &id;
+	const Identifier *id;
 	const ArgumentList &args;
 	Block *block;
-	FunctionDeclaration(Identifier *type, Identifier &id, ArgumentList &args, Block *block) : type(type ? type : &TypeAgnostic), id(id), args(args), block(block) {}
+	FunctionDeclaration(Identifier *type, Identifier *id, ArgumentList &args, Block *block) : type(type), id(id), args(args), block(block) {}
 	virtual llvm::Value *codeGen(CodeGenContext &context) const override;
 };
 
@@ -142,6 +147,13 @@ struct ArgumentList : Statement
 	auto begin() const { return args.begin(); }
 	auto end() const { return args.end(); }
 	void push_back(VariableDeclaration *x) { args.push_back(x); }
+	virtual llvm::Value *codeGen(CodeGenContext &context) const override;
+};
+
+struct AddressOf : Expression
+{
+	const Identifier *ident;
+	AddressOf(Identifier *ident) : ident(ident) {}
 	virtual llvm::Value *codeGen(CodeGenContext &context) const override;
 };
 }; // namespace Node

@@ -1,0 +1,19 @@
+/* C bindings */
+
+extern printf(string, ...) int
+extern scanf(string, ...) int
+extern puts(string) int
+extern getchar() int
+
+extern malloc(int) string
+extern calloc(int, int) string
+extern strlen(string) int
+extern strcat(string, string) string
+
+/* Standard Library */
+func concat(a string, b string) string {
+    result := calloc(strlen(a) + strlen(b) + 1, 1)
+    strcat(result, a)
+    strcat(result, b)
+    return result
+}

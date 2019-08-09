@@ -45,5 +45,6 @@ struct CodeGenContext
 	}
 
 	void generateCode(Node::Block &root);
-	void buildObject();
+	void buildObject(const std::string &filename);
+	void buildExecutable(const std::string &output, const std::string &input);
 };
