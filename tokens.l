@@ -55,7 +55,7 @@
 [ \t\r\n]				; // whitespace
 "//".*\n				; // line comment
 [a-zA-Z_][a-zA-Z_0-9]*	SAVE_TOKEN; return WITH_LOG(IDENTIFIER);
-[0-9]+\.[0-9]+			SAVE_TOKEN; return WITH_LOG(DOUBLE);
+[0-9]+\.[0-9]+			SAVE_TOKEN; return WITH_LOG(FLOAT);
 [0-9]+					SAVE_TOKEN; return WITH_LOG(INTEGER);
 
 "/*"				BEGIN(sc_comment); // block comment

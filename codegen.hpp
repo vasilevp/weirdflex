@@ -9,13 +9,42 @@
 namespace Node
 {
 struct Block;
-}
+struct NodeBase;
+} // namespace Node
+
+template <typename T>
+struct Container
+{
+	std::map<std::string, T> value;
+
+	std::optional<T> find(std::string name)
+	{
+		auto it = value.find(name);
+		if (it == value.end())
+		{
+			return {};
+		}
+
+		return it->second;
+	}
+
+	T &operator[](const std::string &key)
+	{
+		return value[key];
+	}
+};
+
+struct NodeInfo
+{
+	const Node::NodeBase *node;
+	llvm::Value *value;
+};
 
 struct CodeGenBlock
 {
 	llvm::BasicBlock *block;
-	std::map<std::string, llvm::Value *> args;
-	std::map<std::string, llvm::Value *> locals;
+	Container<NodeInfo> args;
+	Container<NodeInfo> locals;
 };
 
 struct CodeGenContext
@@ -23,6 +52,7 @@ struct CodeGenContext
 	std::stack<CodeGenBlock> blocks;
 	llvm::Function *mainFunction;
 	std::unique_ptr<llvm::Module> module;
+	Container<NodeInfo> functions;
 
 	CodeGenContext();
 

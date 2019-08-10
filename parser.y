@@ -24,7 +24,7 @@
 }
 
 /* terminals */
-%token <string> IDENTIFIER INTEGER DOUBLE STRING
+%token <string> IDENTIFIER INTEGER FLOAT STRING
 %token <token> EQ NE LT GT LE GE ASSIGN LET FUNC EXTERN RETURN
 %token <token> LPAREN RPAREN LBRACE RBRACE COMMA DOT ELLIPSIS
 %token <token> PLUS MINUS MUL DIV AMP
@@ -113,10 +113,10 @@ func_decl_arg_set	: func_decl_args
 ident	: IDENTIFIER	{ $$ = new Identifier(*$1); }
 		;
 
-numeric	: INTEGER		{ $$ = new Integer(atol($1->c_str())); }
-		| DOUBLE		{ $$ = new Double(atof($1->c_str())); }
-		| MINUS INTEGER	{ $$ = new Integer(-atol($2->c_str())); }
-		| MINUS DOUBLE	{ $$ = new Double(-atof($2->c_str())); }
+numeric	: INTEGER						{ $$ = new Integer(atol($1->c_str())); }
+		| FLOAT							{ $$ = new Float(atof($1->c_str())); }
+		| MINUS INTEGER	%prec UMINUS	{ $$ = new Integer(-atol($2->c_str())); }
+		| MINUS FLOAT %prec UMINUS		{ $$ = new Float(-atof($2->c_str())); }
 		;
 
 string	: STRING %prec REDUCE	{ $$ = new String(*$1); }

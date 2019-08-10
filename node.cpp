@@ -27,18 +27,7 @@ IRBuilder<> getBuilder(CodeGenContext &context)
 	return IRBuilder<>(context.currentBlock());
 }
 
-template <typename K, typename V>
-optional<V> mapfind(const map<K, V> &m, const K &key)
-{
-	if (auto it = m.find(key); it != m.end())
-	{
-		return make_optional(it->second);
-	}
-
-	return {};
-}
-
-static Type *typeOf(const Identifier &type)
+Type *Node::typeOf(const Identifier &type)
 {
 	if (type.name == "int")
 	{
@@ -60,12 +49,30 @@ static Type *typeOf(const Identifier &type)
 	return Type::getVoidTy(GlobalContext);
 }
 
+InternalType Node::typeOf2(const Identifier &type)
+{
+	if (type.name == "int")
+	{
+		return InternalType::Integer;
+	}
+	if (type.name == "double")
+	{
+		return InternalType::Float;
+	}
+	if (type.name == "string")
+	{
+		return InternalType::String;
+	}
+
+	return InternalType::Invalid;
+}
+
 Value *Integer::codeGen(CodeGenContext &context) const
 {
 	return ConstantInt::get(GlobalContext, APInt(64, value, false));
 }
 
-Value *Double::codeGen(CodeGenContext &context) const
+Value *Float::codeGen(CodeGenContext &context) const
 {
 	return ConstantFP::get(GlobalContext, APFloat(value));
 }
@@ -77,14 +84,14 @@ Value *String::codeGen(CodeGenContext &context) const
 
 Value *Identifier::codeGen(CodeGenContext &context) const
 {
-	if (auto arg = mapfind(context.args(), name))
+	if (auto arg = context.args().find(name))
 	{
-		return *arg;
+		return arg->value;
 	}
 
-	if (auto local = mapfind(context.locals(), name))
+	if (auto local = context.locals().find(name))
 	{
-		return getBuilder(context).CreateLoad(*local);
+		return getBuilder(context).CreateLoad(local->value);
 	}
 
 	throw runtime_error("(Identifier) undeclared variable " + name + '\n');
@@ -104,13 +111,13 @@ Value *Block::codeGen(CodeGenContext &context) const
 
 Value *Assignment::codeGen(CodeGenContext &context) const
 {
-	auto l = mapfind(context.locals(), lhs.name);
+	auto l = context.locals().find(lhs.name);
 	if (!l)
 	{
 		throw runtime_error("(Assignment) undeclared variable: " + lhs.name);
 	}
 
-	return getBuilder(context).CreateStore(rhs.codeGen(context), *l);
+	return getBuilder(context).CreateStore(rhs.codeGen(context), l->value);
 }
 
 Value *createArithmeticOp(CodeGenContext &context, Value *left, Value *right, int op)
@@ -204,12 +211,25 @@ Value *createDoubleBinaryOp(CodeGenContext &context, Value *left, Value *right, 
 	return getBuilder(context).CreateFCmp(pred, left, right);
 }
 
+Value *createStringAddition(CodeGenContext &context, Value *left, Value *right)
+{
+	Function *function = context.module->getFunction("concat");
+	return getBuilder(context).CreateCall(function, {left, right});
+}
+
 Value *Node::BinaryOperator::codeGen(CodeGenContext &context) const
 {
 	CmpInst::Predicate pred;
 
+	auto leftT = lhs->GetType(context);
+	auto rightT = rhs->GetType(context);
 	auto left = lhs->codeGen(context);
 	auto right = rhs->codeGen(context);
+
+	if (leftT != rightT)
+	{
+		throw runtime_error("cannot create binary operator for different argument types");
+	}
 
 	if (left->getType()->isIntegerTy() && right->getType()->isIntegerTy())
 	{
@@ -219,6 +239,11 @@ Value *Node::BinaryOperator::codeGen(CodeGenContext &context) const
 	if (left->getType()->isFloatingPointTy() && right->getType()->isFloatingPointTy())
 	{
 		return createDoubleBinaryOp(context, left, right, op);
+	}
+
+	if (lhs->GetType(context) == InternalType::String && op == PLUS)
+	{
+		return createStringAddition(context, left, right);
 	}
 
 	throw runtime_error("operator not implemented for these arguments");
@@ -237,6 +262,7 @@ Value *FunctionDeclaration::codeGen(CodeGenContext &context) const
 	auto linkage = (id->name.empty() || id->name.front() == '_') ? GlobalValue::InternalLinkage : GlobalValue::ExternalLinkage;
 	Function *function = Function::Create(ftype, linkage, id->name, context.module.get());
 
+	context.functions[id->name] = NodeInfo{node : dynamic_cast<const Expression *>(this), value : function};
 	if (!block) // declaration
 	{
 		return function;
@@ -251,7 +277,7 @@ Value *FunctionDeclaration::codeGen(CodeGenContext &context) const
 		auto arg = *it;
 		auto argumentValue = argsValues++;
 		argumentValue->setName(arg->id->name);
-		context.args()[arg->id->name] = argumentValue;
+		context.args()[arg->id->name] = NodeInfo{node : arg, value : argumentValue};
 	}
 
 	block->codeGen(context);
@@ -291,15 +317,17 @@ Value *VariableDeclaration::codeGen(CodeGenContext &context) const
 
 	auto &store = context.locals()[id->name];
 
+	store.node = this;
+
 	if (rhs == nullptr)
 	{
-		store = getBuilder(context).CreateAlloca(typeOf(*type), nullptr, id->name);
-		return store;
+		store.value = getBuilder(context).CreateAlloca(typeOf(*type), nullptr, id->name);
+		return store.value;
 	}
 
 	Value *rhsResult = rhs->codeGen(context);
-	store = getBuilder(context).CreateAlloca(type ? typeOf(*type) : rhsResult->getType(), nullptr, id->name);
-	return getBuilder(context).CreateStore(rhsResult, store);
+	store.value = getBuilder(context).CreateAlloca(type ? typeOf(*type) : rhsResult->getType(), nullptr, id->name);
+	return getBuilder(context).CreateStore(rhsResult, store.value);
 }
 
 Value *ExpressionStatement::codeGen(CodeGenContext &context) const
@@ -314,7 +342,7 @@ Value *ArgumentList::codeGen(CodeGenContext &context) const
 	{
 		result = arg->codeGen(context);
 		result->setName(arg->id->name);
-		getBuilder(context).CreateStore(context.locals()[arg->id->name], result);
+		getBuilder(context).CreateStore(context.locals()[arg->id->name].value, result);
 	}
 
 	return result;
@@ -327,14 +355,14 @@ Value *ReturnStatement::codeGen(CodeGenContext &context) const
 
 Value *AddressOf::codeGen(CodeGenContext &context) const
 {
-	if (auto arg = mapfind(context.args(), ident->name))
+	if (auto arg = context.args().find(ident->name))
 	{
-		return *arg;
+		return arg->value;
 	}
 
-	if (auto local = mapfind(context.locals(), ident->name))
+	if (auto local = context.locals().find(ident->name))
 	{
-		return *local;
+		return local->value;
 	}
 
 	throw runtime_error("(Identifier) undeclared variable " + ident->name + '\n');
